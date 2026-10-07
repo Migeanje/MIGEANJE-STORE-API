@@ -1,0 +1,13 @@
+# dependencies
+/node_modules
+
+# env files
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+
+# agent tooling (local only)
+.atl/
