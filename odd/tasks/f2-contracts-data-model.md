@@ -36,7 +36,7 @@ Per-slice PRs to `main` (defined by the owner). Each slice branches from the lat
 
 Route legend: inline = parent writes; delegated = one bounded writer (2+ non-trivial files).
 
-- [ ] T0 — Bootstrap `main`: `README.md`, `.gitattributes`, `.gitignore`. Route: inline (mechanical).
+- [x] T0 — Bootstrap `main`: `README.md`, `.gitattributes`, `.gitignore`. Route: inline (mechanical). Evidence: `3166e21 chore: initialize repository`, pushed by the owner to `origin/main`. Review: skipped (trivial passive documentation).
 - [ ] T1 — Slice `docs/f2-money`: ADR 0001 Money, `docs/README.md` index, this document. Route: inline (one non-trivial file).
 - [ ] T2 — Slice `docs/f2-orders`: ADR 0002 order number, ADR 0003 order status projection, order state machine.
 - [ ] T3 — Slice `docs/f2-auth`: ADR 0004 auth ownership in Medusa.
@@ -64,11 +64,13 @@ Passive documentation: structural readback of each file, link check of relative 
 
 - 2026-10-05: research done (Engram #121).
 - 2026-10-07: push to `origin` authorized by the owner with the scope above.
+- 2026-10-07: first push failed (credential manager authenticated as a different GitHub account, 403). Fixed locally: `origin` URL now carries the `Migeanje` username and the repo has a local author identity. Owner pushed `main`, then committed this document to `main` (`0b8e09d`).
+- 2026-10-12: D1 decided. ADR 0001 and `docs/README.md` written on `docs/f2-money`.
 
 ## Decisions log
 
-None yet.
+- D1 (2026-10-12, ADR 0001): amounts with fractions of a céntimo. Payable amounts are strict (the converter throws); informative amounts (tax breakdown) round half-up to two decimals. Rejected: rounding everything at the boundary, because a rounded charge would differ from the payment Medusa recorded and break reconciliation silently.
 
 ## Next step
 
-T0 bootstrap, then T1 decision on money rounding.
+T1: push `docs/f2-money` and hand the compare link to the owner. Then T2, decision on the order number format.
