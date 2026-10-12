@@ -37,7 +37,7 @@ Per-slice PRs to `main` (defined by the owner). Each slice branches from the lat
 Route legend: inline = parent writes; delegated = one bounded writer (2+ non-trivial files).
 
 - [x] T0 — Bootstrap `main`: `README.md`, `.gitattributes`, `.gitignore`. Route: inline (mechanical). Evidence: `3166e21 chore: initialize repository`, pushed by the owner to `origin/main`. Review: skipped (trivial passive documentation).
-- [ ] T1 — Slice `docs/f2-money`: ADR 0001 Money, `docs/README.md` index, this document. Route: inline (one non-trivial file).
+- [x] T1 — Slice `docs/f2-money`: ADR 0001 Money, `docs/README.md` index, this document. Route: inline (one non-trivial file). Evidence: `1b95bb0 docs: add ADR 0001 on money representation`; checks: attribution scan clean, relative link resolves, float example verified in Node. Review: assessed `passive`, not due.
 - [ ] T2 — Slice `docs/f2-orders`: ADR 0002 order number, ADR 0003 order status projection, order state machine.
 - [ ] T3 — Slice `docs/f2-auth`: ADR 0004 auth ownership in Medusa.
 - [ ] T4 — Slice `docs/f2-payments`: ADR 0005 Culqi tokenization and payment provider.
