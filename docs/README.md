@@ -14,6 +14,8 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 | [0004](adr/0004-customer-auth.md) | Customer auth: Medusa owns identity, the storefront holds a Medusa session |
 | [0005](adr/0005-culqi-payments.md) | Payments: Culqi tokenization and a Medusa payment provider (proposed) |
 | [0006](adr/0006-complaints-book.md) | Complaints book: a custom module with a gapless yearly correlative (proposed) |
+| [0007](adr/0007-availability-mapping.md) | Availability: Medusa inventory plus procurement offers, enforced on the server (proposed) |
+| [0008](adr/0008-regime-flags.md) | Regime flags: one typed regime setting, from Nuevo RUS to regime B (proposed) |
 
 ## State machines
 
@@ -21,11 +23,10 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 |---|---|
 | [Order](state-machines/order.md) | The status customers see, from `pagado` to `entregado`, `cancelado` or `reembolsado` |
 | [Complaint](state-machines/complaint.md) | A Hoja de Reclamación from `filed` to `answered`, with derived conditions such as `overdue` (proposed) |
+| [Procurement item](state-machines/procurement-item.md) | The purchase of one backorder line, from `pending` to `received` or `canceled` (proposed) |
 
 ## Coming in F2
 
-- Availability mapping and regime flags ADRs.
 - Data model of each custom module and its module links.
 - Contract map from storefront ports to Medusa endpoints.
-- State machine for procurement item.
 - Seed plan from the storefront fixtures.
