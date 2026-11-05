@@ -29,7 +29,10 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 
 [Data model](data-model/README.md): the custom modules, their models and their module links (proposed).
 
+## Seed plan
+
+[Seed plan](seed-plan.md): what the seed script loads from the storefront fixtures, in which order, and how the Apple line stays non-purchasable (proposed).
+
 ## Coming in F2
 
 - Contract map from storefront ports to Medusa endpoints.
-- Seed plan from the storefront fixtures.
