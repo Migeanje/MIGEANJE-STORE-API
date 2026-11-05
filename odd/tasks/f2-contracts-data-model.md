@@ -39,7 +39,7 @@ Route legend: inline = parent writes; delegated = one bounded writer (2+ non-tri
 - [x] T0 — Bootstrap `main`: `README.md`, `.gitattributes`, `.gitignore`. Route: inline (mechanical). Evidence: `3166e21 chore: initialize repository`, pushed by the owner to `origin/main`. Review: skipped (trivial passive documentation).
 - [x] T1 — Slice `docs/f2-money`: ADR 0001 Money, `docs/README.md` index, this document. Route: inline (one non-trivial file). Evidence: `1b95bb0 docs: add ADR 0001 on money representation`; checks: attribution scan clean, relative link resolves, float example verified in Node. Review: assessed `passive`, not due.
 - [x] T2 — Slice `docs/f2-orders`: ADR 0002 order number, ADR 0003 order status projection, order state machine. Route: inline (one file per decision, written as each decision lands). Evidence: ADR 0002 in `ac83fe4`; ADR 0003 and `docs/state-machines/order.md` in `c49aede`; pushed, PR pending owner merge; checks: attribution scan clean, relative links resolve, Medusa fields (`Order.canceled_at`, `Fulfillment.packed_at/shipped_at/delivered_at/canceled_at`) checked against the official model references. Review: assessed `passive`, not due.
-- [ ] T3 — Slice `docs/f2-auth`: ADR 0004 auth ownership in Medusa.
+- [x] T3 — Slice `docs/f2-auth`: ADR 0004 auth ownership in Medusa. Route: inline (one file). Evidence: commit `docs: add ADR 0004 on customer auth` on `docs/f2-auth`; checks: attribution scan clean, links resolve, Medusa session, verification and config facts checked against the official docs. Proposed points pending owner review: built-in email verification required to sign in, guest orders listed by verified email, throttling middleware, non-rolling sessions, password length middleware.
 - [ ] T4 — Slice `docs/f2-payments`: ADR 0005 Culqi tokenization and payment provider.
 - [ ] T5 — Slice `docs/f2-complaints`: ADR 0006 complaints, complaint state machine.
 - [ ] T6 — Slice `docs/f2-catalog-rules`: ADR 0007 availability mapping, ADR 0008 regime flags (NRUS → B), procurement item state machine.
@@ -67,6 +67,8 @@ Passive documentation: structural readback of each file, link check of relative 
 - 2026-10-07: first push failed (credential manager authenticated as a different GitHub account, 403). Fixed locally: `origin` URL now carries the `Migeanje` username and the repo has a local author identity. Owner pushed `main`, then committed this document to `main` (`0b8e09d`).
 - 2026-10-12: D1 decided. ADR 0001 and `docs/README.md` written on `docs/f2-money`.
 - 2026-11-04: `docs/f2-money` still open, so `docs/f2-orders` branches from it (merge `main` in after the owner merges). D2 decided; ADR 0002 written. D3 decided; ADR 0003 and the order state machine written.
+- 2026-11-04: D4 decided ("Opcion a con todo"). Owner, verbatim: "ya me voy a dormri puedes ir avanzando absolutamente todo lo que puedas sin que sea necesaria mi intervencios porfavor maniana revisaremos rtodos los cambios que hiusite porfa". From here on, forks the owner has not decided are resolved with the recommended option and marked "Proposed — pending owner review" in each ADR. T3–T9 run without stopping. T10 waits for that review. Chain strategy: stacked PRs to `main`, merged in order.
+- Route for T4, T5, T6: delegated, three bounded writers in parallel (independent units with disjoint files, several minutes each). T3: inline.
 
 ## Decisions log
 
@@ -74,6 +76,8 @@ Passive documentation: structural readback of each file, link check of relative 
 - D2 (2026-11-04, ADR 0002): order number `MG-YYYY-NNNNNN` is a formatting of Medusa `display_id` (Lima year of `created_at`, zero-padded to six digits). No counter, no `custom_display_id`. Rejected: own yearly correlative (counter plus a subscriber, number missing until it runs). Accepted cost: no yearly reset, reveals volume, admin shows `#412`.
 - D3 (2026-11-04, ADR 0003): `cancelado` beats `reembolsado`. A canceled order shows `cancelado` with its refund as a detail line; `reembolsado` only for a full refund of an order that was not canceled (after shipment). Partial refunds never change the status. Rejected: `reembolsado` first, because every paid order that is canceled is refunded, so `cancelado` would almost never show.
 
+- D4 (2026-11-04, ADR 0004): Medusa cookie session. The Next.js server logs in, opens the session with `POST /auth/session` and keeps the session id in its own httpOnly cookie. Logout destroys the session in Medusa. TTL 7 days. Redis in production. Rejected: JWT in a cookie, because logout cannot revoke it.
+
 ## Next step
 
-T3: decision on auth ownership in Medusa (ADR 0004), on `docs/f2-auth`.
+T3–T6 in progress (see the 2026-11-04 entries in Progress).
