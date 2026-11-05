@@ -31,6 +31,5 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 
 ## Coming in F2
 
-- Data model of the procurement, sunat-billing, culqi and complaints modules, and customer favorites.
 - Contract map from storefront ports to Medusa endpoints.
 - Seed plan from the storefront fixtures.

@@ -30,6 +30,11 @@ The custom Medusa modules of the Migeanje Store backend, their models and the mo
 | specs | [specs.md](specs.md) | Spec schemas per category and the spec values of each product |
 | editorial | [editorial.md](editorial.md) | Review rubrics per category and the expert review of each product |
 | ubigeo-shipping | [ubigeo-shipping.md](ubigeo-shipping.md) | The ubigeo tree, transit times, holidays and the delivery estimate of each order |
+| procurement | [procurement.md](procurement.md) | Suppliers, supplier offers, supplier purchases, procurement items and "Avísame" requests |
+| sunat-billing | [sunat-billing.md](sunat-billing.md) | The receipt requested at checkout, the comprobantes of each order and the Nuevo RUS cap alerts |
+| culqi | [culqi.md](culqi.md) | Reconciliation records of Culqi charges. The `culqi-payment` provider has no models |
+| complaints | [complaints.md](complaints.md) | Complaint sheets, their answers and the yearly counter |
+| — | [customer-favorites.md](customer-favorites.md) | Favorites: a link between customer and product, with no module of its own |
 
 ## Module links
 
@@ -41,6 +46,14 @@ The custom Medusa modules of the Migeanje Store backend, their models and the mo
 | Review of a product | `product` ↔ `expert_review` | one-to-one | `deleteCascade` |
 | Transit time of a shipping option | `shipping_option` ↔ `transit_time` | one-to-one | none |
 | Delivery estimate of an order | `order` ↔ `delivery_estimate` | one-to-one | none |
+| Offers of a variant | `product_variant` ↔ `supplier_offer` | one-to-many (`isList` on the offer) | none |
+| "Avísame" requests of a variant | `product_variant` ↔ `restock_request` | one-to-many (`isList` on the request) | none |
+| Procurement items of an order | `order` ↔ `procurement_item` | one-to-many (`isList` on the item) | none |
+| Receipt requested for a cart | `cart` ↔ `receipt_request` | one-to-one | none |
+| Comprobantes of an order | `order` ↔ `comprobante` | one-to-many (`isList` on the comprobante) | none |
+| Favorites | `customer` ↔ `product` | many-to-many (`isList` on both) | extra column `favorited_at`; no `deleteCascade` |
+
+Not verified: whether a link between two Medusa commerce modules (customer ↔ product) is supported. The fallback is a small `customer_favorite` model with read-only links, as in Medusa's wishlist guide ([customer favorites](customer-favorites.md)). F3 spike.
 
 ## Models
 
@@ -60,3 +73,16 @@ The custom Medusa modules of the Migeanje Store backend, their models and the mo
 | `transit_time` | `trtime` | ubigeo-shipping |
 | `holiday` | `hday` | ubigeo-shipping |
 | `delivery_estimate` | `dlvest` | ubigeo-shipping |
+| `supplier` | `sup` | procurement |
+| `supplier_offer` | `supoff` | procurement |
+| `supplier_purchase` | `suppur` | procurement |
+| `procurement_item` | `procitem` | procurement |
+| `restock_request` | `rstreq` | procurement |
+| `receipt_request` | `rcptreq` | sunat-billing |
+| `comprobante` | `cpe` | sunat-billing |
+| `nrus_cap_alert` | `nrusalert` | sunat-billing |
+| `culqi_reconciliation` | `culrec` | culqi |
+| `complaint` | `cmpl` | complaints |
+| `complaint_answer` | `cmplans` | complaints |
+| `complaint_counter` | `cmplctr` | complaints |
+| `customer_favorite` (fallback only) | `custfav` | favorites fallback |
