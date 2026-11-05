@@ -66,11 +66,13 @@ Passive documentation: structural readback of each file, link check of relative 
 - 2026-10-07: push to `origin` authorized by the owner with the scope above.
 - 2026-10-07: first push failed (credential manager authenticated as a different GitHub account, 403). Fixed locally: `origin` URL now carries the `Migeanje` username and the repo has a local author identity. Owner pushed `main`, then committed this document to `main` (`0b8e09d`).
 - 2026-10-12: D1 decided. ADR 0001 and `docs/README.md` written on `docs/f2-money`.
+- 2026-11-04: `docs/f2-money` still open, so `docs/f2-orders` branches from it (merge `main` in after the owner merges). D2 decided; ADR 0002 written.
 
 ## Decisions log
 
 - D1 (2026-10-12, ADR 0001): amounts with fractions of a céntimo. Payable amounts are strict (the converter throws); informative amounts (tax breakdown) round half-up to two decimals. Rejected: rounding everything at the boundary, because a rounded charge would differ from the payment Medusa recorded and break reconciliation silently.
+- D2 (2026-11-04, ADR 0002): order number `MG-YYYY-NNNNNN` is a formatting of Medusa `display_id` (Lima year of `created_at`, zero-padded to six digits). No counter, no `custom_display_id`. Rejected: own yearly correlative (counter plus a subscriber, number missing until it runs). Accepted cost: no yearly reset, reveals volume, admin shows `#412`.
 
 ## Next step
 
-T1: push `docs/f2-money` and hand the compare link to the owner. Then T2, decision on the order number format.
+T2: decision on the order status projection (ADR 0003), then the order state machine.
