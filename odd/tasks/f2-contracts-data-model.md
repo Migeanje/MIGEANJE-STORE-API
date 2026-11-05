@@ -38,7 +38,7 @@ Route legend: inline = parent writes; delegated = one bounded writer (2+ non-tri
 
 - [x] T0 — Bootstrap `main`: `README.md`, `.gitattributes`, `.gitignore`. Route: inline (mechanical). Evidence: `3166e21 chore: initialize repository`, pushed by the owner to `origin/main`. Review: skipped (trivial passive documentation).
 - [x] T1 — Slice `docs/f2-money`: ADR 0001 Money, `docs/README.md` index, this document. Route: inline (one non-trivial file). Evidence: `1b95bb0 docs: add ADR 0001 on money representation`; checks: attribution scan clean, relative link resolves, float example verified in Node. Review: assessed `passive`, not due.
-- [ ] T2 — Slice `docs/f2-orders`: ADR 0002 order number, ADR 0003 order status projection, order state machine.
+- [x] T2 — Slice `docs/f2-orders`: ADR 0002 order number, ADR 0003 order status projection, order state machine. Route: inline (one file per decision, written as each decision lands). Evidence: ADR 0002 in `ac83fe4`; ADR 0003 and `docs/state-machines/order.md` in the next commit; checks: attribution scan clean, relative links resolve, Medusa fields (`Order.canceled_at`, `Fulfillment.packed_at/shipped_at/delivered_at/canceled_at`) checked against the official model references. Review: assessed `passive`, not due.
 - [ ] T3 — Slice `docs/f2-auth`: ADR 0004 auth ownership in Medusa.
 - [ ] T4 — Slice `docs/f2-payments`: ADR 0005 Culqi tokenization and payment provider.
 - [ ] T5 — Slice `docs/f2-complaints`: ADR 0006 complaints, complaint state machine.
@@ -66,13 +66,14 @@ Passive documentation: structural readback of each file, link check of relative 
 - 2026-10-07: push to `origin` authorized by the owner with the scope above.
 - 2026-10-07: first push failed (credential manager authenticated as a different GitHub account, 403). Fixed locally: `origin` URL now carries the `Migeanje` username and the repo has a local author identity. Owner pushed `main`, then committed this document to `main` (`0b8e09d`).
 - 2026-10-12: D1 decided. ADR 0001 and `docs/README.md` written on `docs/f2-money`.
-- 2026-11-04: `docs/f2-money` still open, so `docs/f2-orders` branches from it (merge `main` in after the owner merges). D2 decided; ADR 0002 written.
+- 2026-11-04: `docs/f2-money` still open, so `docs/f2-orders` branches from it (merge `main` in after the owner merges). D2 decided; ADR 0002 written. D3 decided; ADR 0003 and the order state machine written.
 
 ## Decisions log
 
 - D1 (2026-10-12, ADR 0001): amounts with fractions of a céntimo. Payable amounts are strict (the converter throws); informative amounts (tax breakdown) round half-up to two decimals. Rejected: rounding everything at the boundary, because a rounded charge would differ from the payment Medusa recorded and break reconciliation silently.
 - D2 (2026-11-04, ADR 0002): order number `MG-YYYY-NNNNNN` is a formatting of Medusa `display_id` (Lima year of `created_at`, zero-padded to six digits). No counter, no `custom_display_id`. Rejected: own yearly correlative (counter plus a subscriber, number missing until it runs). Accepted cost: no yearly reset, reveals volume, admin shows `#412`.
+- D3 (2026-11-04, ADR 0003): `cancelado` beats `reembolsado`. A canceled order shows `cancelado` with its refund as a detail line; `reembolsado` only for a full refund of an order that was not canceled (after shipment). Partial refunds never change the status. Rejected: `reembolsado` first, because every paid order that is canceled is refunded, so `cancelado` would almost never show.
 
 ## Next step
 
-T2: decision on the order status projection (ADR 0003), then the order state machine.
+T3: decision on auth ownership in Medusa (ADR 0004), on `docs/f2-auth`.
