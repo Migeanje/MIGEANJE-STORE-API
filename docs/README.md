@@ -25,8 +25,12 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 | [Complaint](state-machines/complaint.md) | A Hoja de Reclamación from `filed` to `answered`, with derived conditions such as `overdue` (proposed) |
 | [Procurement item](state-machines/procurement-item.md) | The purchase of one backorder line, from `pending` to `received` or `canceled` (proposed) |
 
+## Data model
+
+[Data model](data-model/README.md): the custom modules, their models and their module links (proposed).
+
 ## Coming in F2
 
-- Data model of each custom module and its module links.
+- Data model of the procurement, sunat-billing, culqi and complaints modules, and customer favorites.
 - Contract map from storefront ports to Medusa endpoints.
 - Seed plan from the storefront fixtures.

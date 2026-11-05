@@ -52,7 +52,7 @@
 3. **Lead time lives in the procurement module** (proposed). A `SupplierOffer` holds the terms under which one supplier sells one variant: supplier, `lead_time_min_days`, `lead_time_max_days` (business days, Lima), unit cost with `currency_code`, `priority` and `active`. A module link connects `ProductVariant` to its offers, as a list ([Module links](https://docs.medusajs.com/learn/fundamentals/module-links)). T7 defines the fields. The shown lead time comes from the first active offer, by `priority`, among suppliers the regime allows. Lead time is never stored in metadata (#18, 6.3). The procurement item copies it when the order is placed, so later offer changes do not change a promise.
 4. **"Avísame" and the Apple line.**
    - The Apple line stays "Avísame", not purchasable, until regime B (approved, R9).
-   - The Apple products belong to the product collection with handle `linea-apple` (proposed). Row 1 makes them `unavailable` whatever their stock, offers or prices. The seed plan (T9) creates the collection.
+   - Brands are product collections, one per brand ([data model](../data-model/README.md)). The Apple line is the brand collection with handle `apple` (proposed). Row 1 makes its products `unavailable` whatever their stock, offers or prices. The seed plan (T9) creates the collection.
    - Their data also stays unsellable (proposed): no PEN price, no stock, no offers, `allow_backorder` off. That gives three independent barriers: row 1, Medusa's price check and Medusa's stock check. The F1 fixtures show Peru reference prices; R9 removes them.
    - "Avísame" stores the request (proposed). A custom route `POST /store/restock-requests` saves `{ variant, email }` as a `RestockRequest` in the procurement module, linked to the variant. It accepts only variants whose status is `unavailable`, and it is throttled. The count per variant is the demand signal R9 asks for. Sending the email when the product arrives belongs to the notifications work (Resend, R10). The email is personal data: the privacy policy and the ANPD registration cover it (R10).
 5. **Quantity limits on the server.**
@@ -111,7 +111,7 @@
   - `manage_inventory` on for every variant.
   - Backorder fixtures get `allow_backorder` on, no stock, and an offer of 15–20 days from a local supplier.
   - One stock location linked to the storefront sales channel.
-  - The `linea-apple` collection.
+  - The `apple` brand collection.
 
 ## Alternatives considered
 
@@ -120,6 +120,6 @@
 - **`manage_inventory` off for backorder variants.** Rejected: Medusa would treat them as always in stock, with no stock count and no reservation.
 - **The server clamps quantities.** Rejected: the quantity would change at payment without the customer seeing it.
 - **Allow lines that are part stock, part backorder.** Rejected: one line would carry two promises and two limits, and F1 has no way to show it.
-- **Mark the Apple line with a boolean on a custom model linked to the product.** Rejected: a model and a link for one rule. A collection is core data, visible in the admin. Tradeoff: if a product belongs to only one collection, the Apple products cannot join another collection. Not verified; F3 spike.
+- **Mark the Apple line with a boolean on a custom model linked to the product.** Rejected: a model and a link for one rule. A collection is core data, visible in the admin, and brands are already collections.
 - **Remove the Apple prices as the only barrier.** Rejected: one mistaken price in the admin would make a MacBook purchasable under Nuevo RUS.
 - **Keep "Avísame" as a screen-only confirmation.** Rejected: production copy would promise an email that never comes, and the demand signal would be lost.
