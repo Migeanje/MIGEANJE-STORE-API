@@ -12,6 +12,7 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 | [0002](adr/0002-order-number.md) | Order number: a formatting of Medusa's `display_id` |
 | [0003](adr/0003-order-status-projection.md) | Order status: a projection of order, payment, fulfillment and procurement |
 | [0004](adr/0004-customer-auth.md) | Customer auth: Medusa owns identity, the storefront holds a Medusa session |
+| [0005](adr/0005-culqi-payments.md) | Payments: Culqi tokenization and a Medusa payment provider (proposed) |
 
 ## State machines
 
@@ -21,7 +22,7 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 
 ## Coming in F2
 
-- Culqi tokenization, complaints, availability mapping and regime flags ADRs.
+- Complaints, availability mapping and regime flags ADRs.
 - Data model of each custom module and its module links.
 - Contract map from storefront ports to Medusa endpoints.
 - State machines for procurement item and complaint.
