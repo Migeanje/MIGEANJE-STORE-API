@@ -127,15 +127,16 @@
    | 7 | Provider | `authorizePayment` runs the duplicate guards (decision 8), then `POST /v2/charges` |
    | 8 | Provider | Classifies Culqi's answer (table below) and returns the session status |
 
-   - The answer is classified by its body, never by its HTTP status, because Culqi's pages disagree on 200 and 201:
+   - A successful answer is classified by its body, never by 200 versus 201, because Culqi's pages disagree on those codes. A 5xx always means the outcome is unknown, even when it carries an error body: Culqi may have stored the charge before failing.
 
    | Culqi answer | Session status | Provider data |
    |---|---|---|
    | Charge object (`chr_` id), captured | `captured` | `charge_id`, `charge_status: "captured"` |
    | `action_code: "REVIEW"` | `requires_more` | `charge_status: "requires_3ds"` |
    | Error object with `type: "card_error"` | `error` | `charge_status: "declined"`, `decline_reason` (decision 14) |
-   | Any other error object | `error` | `charge_status: "failed"`, `decline_reason: "try_again"`, logged as an integration error. No charge exists |
-   | No answer (timeout, network error, 5xx without a body) | Lookup (decision 8); `error` if still unknown | `charge_status: "unknown"`, `decline_reason: "pending"` |
+   | Any other error object with a 4xx status: Culqi rejected the request itself | `error` | `charge_status: "failed"`, `decline_reason: "try_again"`, logged as an integration error. No charge exists |
+   | Any 5xx, with or without an error body | Lookup (decision 8); `error` if still unknown | `charge_status: "unknown"`, `decline_reason: "pending"` |
+   | No answer (timeout, network error) | Lookup (decision 8); `error` if still unknown | `charge_status: "unknown"`, `decline_reason: "pending"` |
 
    - Charge request fields:
      - `amount`: `amount_cents`.
@@ -149,11 +150,12 @@
      - `authentication_3DS`: only on the 3DS retry.
 
    - **Payment attempts are capped** (proposed). A declined session accepts a new token (decision 8), so without a cap the checkout could be used to test stolen cards.
-     - A middleware on `POST /store/carts/:id/complete` allows 10 completions per cart per hour and 30 per client IP per hour, counted in Redis as the sign-in throttle is (ADR 0004, decision 8).
-     - Only completion charges. Updating the session with a new token calls nothing at Culqi, so the cap sits on completion. A 3DS round trip uses two completions.
-     - Over the cap, the route answers HTTP 429 before any Culqi call. The storefront shows "Hiciste muchos intentos de pago. Espera un momento y vuelve a intentarlo más tarde."
-     - Carts are free to create, so the per-IP count is the one that stops card testing. It needs the client IP, which reaches Medusa only through the storefront server (open item C5 of the contract map).
-     - Culqi's antifraud stays the first line.
+     - Only a completion can create a charge. Updating the session with a new token calls nothing at Culqi, so the cap sits on `POST /store/carts/:id/complete`.
+     - A middleware on that route allows 10 completions per cart per hour and 30 per client IP per hour, counted in Redis as the sign-in throttle is (ADR 0004, decision 8). A 3DS round trip uses two completions, so one cart gets 5 to 10 payment attempts per hour.
+     - Over the cap, the route answers HTTP 429 before any Culqi call. The storefront shows "Hiciste muchos intentos de pago. Vuelve a intentarlo en una hora."
+     - Carts are free to create, so the per-IP count is the one that stops card testing. Medusa trusts a forwarded client IP only on requests that carry the storefront server's credential, as for sign-in (ADR 0004, decision 8; open item C5 of the contract map). Any other caller is counted by its own address, and a forwarded header it sends is ignored.
+     - Without a trusted client IP (C5 not built yet, or the header missing), the per-IP count is skipped, never keyed on the storefront server's address. One shared bucket would stop every checkout in the store after a few dozen payments. The per-cart cap and Culqi's antifraud still apply, and each skip is logged.
+     - If Redis is unavailable, the cap fails open: completion proceeds uncounted and the failure is logged at error level. A cache outage must not stop sales, and Culqi's antifraud stays the first line.
 
 5. **Amounts** (approved, R2 and ADR 0001; the bounds are proposed).
    - The provider converts Medusa's big number to integer céntimos by parsing its decimal string. Never float math.
@@ -310,10 +312,10 @@
     | `declined` | `insufficient_funds`, `stolen_card`, `lost_card`, `fraudulent`, `contact_issuer`, `issuer_decline_operation`, `too_many_attempts_cvv`, `soft_block`, `culqi_card`, any unknown code | "No pudimos aprobar el pago con esta tarjeta. Prueba con otra tarjeta o comunícate con tu banco. No se hizo ningún cargo." |
     | `check_card` | `expired_card`, `invalid_cvv` (`incorrect_cvv` in the test cards), `invalid_card` | "Revisa los datos de tu tarjeta o prueba con otra. No se hizo ningún cargo." |
     | `authentication_failed` | 3DS failed or timed out | "No pudimos verificar el pago con tu banco. Inténtalo de nuevo o prueba con otra tarjeta. No se hizo ningún cargo." |
-    | `try_again` | `issuer_not_available`, `processing_error`, any error object that is not a card error | "Algo salió mal al procesar el pago. Espera un momento e inténtalo de nuevo. No se hizo ningún cargo." |
-    | `pending` | No answer, and the lookup could not confirm | Title "Estamos confirmando tu pago". Message: "No vuelvas a pagar: revisaremos tu pago y te escribiremos a tu correo." |
+    | `try_again` | `issuer_not_available`, `processing_error`, any 4xx error object that is not a card error | "Algo salió mal al procesar el pago. Espera un momento e inténtalo de nuevo. No se hizo ningún cargo." |
+    | `pending` | No answer or a 5xx, and the lookup could not confirm | Title "Estamos confirmando tu pago". Message: "No vuelvas a pagar: revisaremos tu pago y te escribiremos a tu correo." |
 
-    - "No se hizo ningún cargo" appears only when Culqi answered with an error object.
+    - "No se hizo ningún cargo" appears only when Culqi answered a card decline or a 4xx error object. A 5xx never shows it.
     - The `declined` text replaces the F1 "Tu banco rechazó la tarjeta", because Culqi's own blocks (`soft_block`, `culqi_card`) are not bank declines.
 
 15. **Reconciliation job and the F1 ports** (proposed).
@@ -322,13 +324,15 @@
       1. Lists the Culqi charges created in the last 48 hours, page by page. Keeps those with `metadata.medusa_session_id`.
       2. Resolves each successful charge to its session, cart and order.
       3. Classifies it: `matched` (an order's payment holds this `charge_id`), `duplicate` (the cart's order was paid by another charge), `orphan` (no order, and the charge is older than 30 minutes) or `unresolved` (the session or cart cannot be found).
-      4. Checks again that no order references the charge, then refunds it in full: `duplicado` for `duplicate`, `solicitud_comprador` for `orphan`. An `unresolved` charge is never refunded automatically.
-         - It first skips a charge that is already refunded, so nothing is refunded twice. A failed completion's compensation refunds through `cancelPayment` (decision 12), which records the refund in the session's `data.refunds`. A charge with a `culqi_reconciliation` record is never refunded again; the unique `charge_id` keeps reruns idempotent.
-         - A charge already covered by `data.refunds` gets its record with that refund and no new refund call. The owner is not alerted for it.
+      4. Skips every charge that is already refunded, so nothing is refunded twice:
+         - A charge with a `culqi_reconciliation` record is never refunded again; the unique `charge_id` keeps reruns idempotent.
+         - A failed completion's compensation refunds through `cancelPayment` (decision 12), which records the refund in the session's `data.refunds`. A charge covered by it gets its record with that refund, no new refund call and no owner alert.
          - If the charge object shows refunds (F3 spike S12), the job checks it too, which also covers a refund made in the CulqiPanel.
-      5. Writes a `culqi_reconciliation` record for every charge that is not `matched`. It alerts the owner, except for a charge it found already refunded.
-      6. Re-checks pending refunds. `Rechazado` alerts the owner.
+      5. For the remaining `duplicate` and `orphan` charges, checks again that no order references the charge, then refunds it in full: `duplicado` for `duplicate`, `solicitud_comprador` for `orphan`. An `unresolved` charge is never refunded automatically.
+      6. Writes a `culqi_reconciliation` record for every charge that is not `matched`. It alerts the owner, except for a charge it found already refunded.
+      7. Re-checks pending refunds. `Rechazado` alerts the owner.
     - The 30-minute grace period keeps the job away from a completion still in progress.
+    - **The grace period and the lookup window are coupled.** The grace period (30 minutes) must stay longer than the lost-response lookup window (20 minutes, decision 8) plus a margin. Otherwise the job could refund a charge the lookup still adopts, and the order would ship unpaid. Change both numbers together.
     - F1 port mapping:
 
     | F1 | Medusa design |
@@ -386,7 +390,8 @@
   - Duplicates: a second charge on a completed cart is refunded with `duplicado`.
   - Duplicates: after the job refunded an orphan charge, a retry on the same session creates a new charge instead of adopting the refunded one.
   - Reconciliation: a charge refunded by a failed completion's compensation gets a record with that refund. No second refund is attempted and the owner is not alerted.
-  - Classifier: an error object that is not a card error sets `charge_status: "failed"`.
+  - Classifier: a 4xx error object that is not a card error sets `charge_status: "failed"`. A 5xx with an error body goes to the lookup and ends `unknown` when the lookup finds nothing.
+  - Attempts: without a trusted client IP, the per-IP count is skipped and checkout keeps working; with Redis down, completion proceeds and logs the failure.
   - Currency: the session stores `pen`; the charge request sends `PEN`.
   - Attempts: the eleventh completion of one cart within an hour answers 429 and makes no Culqi call.
   - Webhook replay: the same event posted twice is fetched twice, logged, answered `not_supported`, and changes nothing.
