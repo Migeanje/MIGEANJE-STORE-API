@@ -14,7 +14,10 @@
   - Payments: the computed `payment_status`, captures and refunds.
   - Fulfillments: each one has `packed_at`, `shipped_at`, `delivered_at` and `canceled_at` ([Fulfillment model](https://docs.medusajs.com/resources/references/fulfillment/models/Fulfillment)). There is also the computed `fulfillment_status`.
   - The procurement module (custom): the purchase of each backorder line from its supplier.
-- `cancelOrderWorkflow` fails while the order has a fulfillment that is not canceled. It refunds captured payments and emits `order.canceled`. Culqi captures a charge by default, so payments are captured when the order is placed (ADR 0005 confirms the payment flow). Therefore **every canceled order that was paid also ends up fully refunded**.
+- `cancelOrderWorkflow` fails while the order has a fulfillment that is not canceled. It refunds captured payments and emits `order.canceled`.
+- Payments are meant to be captured when the order is placed: ADR 0005 (decision 6) charges with `capture: true`. Whether Medusa records that capture is not verified yet; it is F3 spike S1 of ADR 0005.
+  - If S1 holds, **every canceled order that was paid also ends up fully refunded**.
+  - If S1 fails, ADR 0005's fallback captures right after placement. An order canceled in between is refunded at Culqi, but Medusa records no refund, so its refund detail line is missing until F3 closes that window (ADR 0005, decision 6).
 
 ## Decision
 
@@ -31,7 +34,7 @@
    | 6 | The order has a procurement item that is not canceled and not yet received | `en_importacion` |
    | 7 | Otherwise | `pagado` |
 
-3. **`cancelado` beats `reembolsado`** (owner decision, 2026-11-04). A canceled order shows `cancelado`. Its refund appears as a detail line. `reembolsado` is reserved for a full refund of an order that was **not** canceled, which only happens after shipment through a return. Without this rule, `cancelado` would almost never show, because a paid order that is canceled is always refunded.
+3. **`cancelado` beats `reembolsado`** (owner decision, 2026-11-04). A canceled order shows `cancelado`. Its refund appears as a detail line. `reembolsado` is reserved for a full refund of an order that was **not** canceled. In normal operation that happens after shipment: a return, or an order lost in transit. Before shipment the owner cancels the order instead. Nothing in Medusa prevents a full refund without cancellation at an earlier step, and the projection then shows `reembolsado` too (see the [order state machine](../state-machines/order.md)). Without this rule, `cancelado` would almost never show, because a paid order that is canceled is always refunded.
 4. **Partial refunds do not change the status.** `partially_refunded` keeps the progress status, and each refund appears as a detail line.
 5. **When each step is reached** (the `at` of the timeline):
    - `pagado`: the order's `created_at`. `completeCartWorkflow` only creates an order whose payment was authorized.
@@ -52,8 +55,8 @@
 
 - No status column means no status that drifts from reality. Every status change comes from a Medusa workflow or a procurement transition that already exists.
 - In-stock orders show `pagado` until the owner creates the fulfillment, as in F1.
-- The projection is the most tested piece of order tracking. F3 writes it test-first with one case per precedence row, plus: canceled and refunded, partial refund, fulfillment created before the goods arrive, canceled fulfillment, and partial delivery (stays `en_camino`).
-- Once an order is shipped, the only way out is a return and a refund. Canceling an order that is in `preparando` requires canceling its fulfillment first.
+- The projection is the most tested piece of order tracking. F3 writes it test-first with one case per precedence row, plus: canceled and refunded, partial refund, full refund before shipment without cancellation (`reembolsado`), fulfillment created before the goods arrive, canceled fulfillment, and partial delivery (stays `en_camino`).
+- Once an order is shipped, the only way out is a full refund: after a return, or when the carrier lost the order. Canceling an order that is in `preparando` requires canceling its fulfillment first.
 - Canceling an order must also cancel its open procurement items. A subscriber on `order.canceled` does it, following the procurement item state machine (T6).
 - Storefront follow-up (F4):
   - `ORDER_STATUSES` gains `cancelado` and `reembolsado`.
