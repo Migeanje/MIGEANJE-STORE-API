@@ -95,7 +95,7 @@
 
    | Method | Culqi call | Behavior |
    |---|---|---|
-   | `initiatePayment` | None | Stores `amount_cents` and `currency_code` from Medusa's input. Ignores any `data` the storefront sent |
+   | `initiatePayment` | None | Stores `amount_cents` and `currency_code` from Medusa's input, in lowercase as Medusa sends it (`pen`). Ignores any `data` the storefront sent |
    | `updatePayment` | None | Recomputes `amount_cents` from Medusa's input. Never touches `client` |
    | `authorizePayment` | Lookup, then `POST /v2/charges` | Decisions 4, 7 and 8 |
    | `capturePayment` | None for a captured charge | Decision 6 |
@@ -134,12 +134,12 @@
    | Charge object (`chr_` id), captured | `captured` | `charge_id`, `charge_status: "captured"` |
    | `action_code: "REVIEW"` | `requires_more` | `charge_status: "requires_3ds"` |
    | Error object with `type: "card_error"` | `error` | `charge_status: "declined"`, `decline_reason` (decision 14) |
-   | Any other error object | `error` | `decline_reason: "try_again"`, logged as an integration error |
+   | Any other error object | `error` | `charge_status: "failed"`, `decline_reason: "try_again"`, logged as an integration error. No charge exists |
    | No answer (timeout, network error, 5xx without a body) | Lookup (decision 8); `error` if still unknown | `charge_status: "unknown"`, `decline_reason: "pending"` |
 
    - Charge request fields:
      - `amount`: `amount_cents`.
-     - `currency_code`: uppercase (`PEN`). Medusa uses lowercase.
+     - `currency_code`: the stored lowercase code, uppercased for Culqi (`pen` becomes `PEN`). The session keeps Medusa's lowercase, so the `validate` hook compares it with the cart's currency directly.
      - `email`: `data.client.email`.
      - `source_id`: `data.client.token_id`.
      - `capture: true`.
@@ -147,6 +147,13 @@
      - `metadata: { medusa_session_id, medusa_cart_id }`.
      - `antifraud_details: { device_finger_print_id }`.
      - `authentication_3DS`: only on the 3DS retry.
+
+   - **Payment attempts are capped** (proposed). A declined session accepts a new token (decision 8), so without a cap the checkout could be used to test stolen cards.
+     - A middleware on `POST /store/carts/:id/complete` allows 10 completions per cart per hour and 30 per client IP per hour, counted in Redis as the sign-in throttle is (ADR 0004, decision 8).
+     - Only completion charges. Updating the session with a new token calls nothing at Culqi, so the cap sits on completion. A 3DS round trip uses two completions.
+     - Over the cap, the route answers HTTP 429 before any Culqi call. The storefront shows "Hiciste muchos intentos de pago. Espera un momento y vuelve a intentarlo más tarde."
+     - Carts are free to create, so the per-IP count is the one that stops card testing. It needs the client IP, which reaches Medusa only through the storefront server (open item C5 of the contract map).
+     - Culqi's antifraud stays the first line.
 
 5. **Amounts** (approved, R2 and ADR 0001; the bounds are proposed).
    - The provider converts Medusa's big number to integer céntimos by parsing its decimal string. Never float math.
@@ -184,13 +191,17 @@
    |---|---|---|
    | Same cart completed twice at once | `completeCartWorkflow` takes a lock and returns the same order for the same cart | Medusa (verified) |
    | Session already charged | `authorizePayment` first reads `data.charge_id`. If present, it fetches the charge and returns its state. It never posts a second charge for that session | Provider |
-   | Lost response | Before every `POST /v2/charges`, the provider lists charges with the same `email` and `amount` created in the last 24 hours and matches `metadata.medusa_session_id`. A successful match is adopted instead of charging again | Provider |
+   | Lost response | Before every `POST /v2/charges`, the provider lists charges with the same `email` and `amount` created in the last 20 minutes and matches `metadata.medusa_session_id`. A successful match is adopted instead of charging again | Provider |
    | Charged session replaced | Medusa refuses to delete a session whose payment is not canceled or fully refunded | Medusa (verified) |
    | Total changed | Medusa deletes the sessions when the cart total changes. The `validate` hook compares the session amount with the cart total | Medusa (verified) and hook |
    | Customer saw another cart | The F1 fingerprint (below) | Storefront |
    | Anything that still slips through | The reconciliation job refunds charges without an order (decision 15) | Job |
 
    - Every charge carries `metadata.medusa_session_id` and `metadata.medusa_cart_id`.
+   - The lookup never adopts a charge the job may already have refunded.
+     - The lookup window (20 minutes) ends before the job's grace period (30 minutes, decision 15) starts. The job refunds an orphan charge only after the lookup can no longer adopt it, and the 10-minute gap covers a completion still in progress.
+     - The lookup also skips a charge that Culqi reports as refunded, if the charge object shows it (F3 spike S12).
+     - Cost: a retry more than 20 minutes after a lost response charges again. The job refunds the first charge after its grace period. Meanwhile the storefront shows "No vuelvas a pagar" (decision 14) while `charge_status` is `unknown`.
    - A new charge with `duplicated: true` is logged. The charge stands; the job decides.
    - A declined attempt also gets a Culqi `charge_id`. Only a successful charge sets `data.charge_id`, so a declined session accepts a new token.
    - Not verified; F3 spike S4: which provider input carries the Medusa session id and the cart id. Medusa's webhook actions return a `session_id`, so the provider must be able to learn it. Without the cart id, the job resolves the cart from the session.
@@ -206,8 +217,8 @@
    | Field | Written by | Content |
    |---|---|---|
    | `amount_cents` | Provider | Integer céntimos from Medusa's amount |
-   | `currency_code` | Provider | `PEN` |
-   | `charge_status` | Provider | `none`, `requires_3ds`, `captured`, `declined` or `unknown` |
+   | `currency_code` | Provider | `pen`: lowercase, as Medusa sends it. Uppercased only in the charge request |
+   | `charge_status` | Provider | `none`, `requires_3ds`, `captured`, `declined` (Culqi refused the card), `failed` (Culqi refused the request; no charge exists) or `unknown` |
    | `charge_id` | Provider | `chr_…`, only once a charge succeeded |
    | `decline_reason` | Provider | One customer category from decision 14, never a Culqi code |
    | `refunds` | Provider | `[{ id: "ref_…", amount_cents, status }]` |
@@ -225,6 +236,12 @@
      - Card BIN or last four digits.
    - The token sits in `data.client` because Medusa's update route puts storefront data there. The storefront created it, and it works only with the secret key.
    - `authorizePayment` never copies `client` into the data it returns, so the payment record holds no token.
+   - When the token leaves the session:
+     - The provider never edits `client`; it belongs to the storefront.
+     - After a decline, the next attempt's token overwrites it.
+     - A deleted session takes it with it.
+     - After a successful charge, `authorizePayment` returns data without `client`. Whether Medusa then drops `client` from the session, and whether Culqi refuses a token that already paid a charge: Not verified; F3 spike S11.
+     - If neither holds, the token stays visible only to the storefront that created it, and it works only with the secret key, which never leaves the backend.
    - Raw Culqi codes go only to a structured server log, `culqi_charge_failed`, with the session id, charge id, `type` and `decline_code`.
 
 10. **Webhooks** (proposed).
@@ -306,7 +323,10 @@
       2. Resolves each successful charge to its session, cart and order.
       3. Classifies it: `matched` (an order's payment holds this `charge_id`), `duplicate` (the cart's order was paid by another charge), `orphan` (no order, and the charge is older than 30 minutes) or `unresolved` (the session or cart cannot be found).
       4. Checks again that no order references the charge, then refunds it in full: `duplicado` for `duplicate`, `solicitud_comprador` for `orphan`. An `unresolved` charge is never refunded automatically.
-      5. Writes a `culqi_reconciliation` record for every charge that is not `matched`, and alerts the owner.
+         - It first skips a charge that is already refunded, so nothing is refunded twice. A failed completion's compensation refunds through `cancelPayment` (decision 12), which records the refund in the session's `data.refunds`. A charge with a `culqi_reconciliation` record is never refunded again; the unique `charge_id` keeps reruns idempotent.
+         - A charge already covered by `data.refunds` gets its record with that refund and no new refund call. The owner is not alerted for it.
+         - If the charge object shows refunds (F3 spike S12), the job checks it too, which also covers a refund made in the CulqiPanel.
+      5. Writes a `culqi_reconciliation` record for every charge that is not `matched`. It alerts the owner, except for a charge it found already refunded.
       6. Re-checks pending refunds. `Rechazado` alerts the owner.
     - The 30-minute grace period keeps the job away from a completion still in progress.
     - F1 port mapping:
@@ -325,7 +345,8 @@
 ## Consequences
 
 - Card data never reaches our servers. PCI scope stays with Culqi's checkout (R1).
-- Each payment costs two Culqi calls: the lookup and the charge. The lookup makes a retry after a lost response safe.
+- Each payment costs two Culqi calls: the lookup and the charge. The lookup makes a retry within 20 minutes of a lost response safe. A later retry charges again, and the job refunds the first charge.
+- Payment attempts are capped per cart and per client IP. A customer whose cards keep failing waits up to an hour.
 - Refunds reach the customer's card in up to 30 days, depending on the bank. There is no same-day annulment.
 - F3 installs Medusa v2.22.1 or later. The Update Payment Session route does not exist before it. Engram #121 recorded v2.21.2 as the latest version; the current documentation supersedes it.
 - The API spec declares `email` with bounds 5 to 50. If that is a length limit, longer emails cannot pay (F3 spike S9).
@@ -345,6 +366,8 @@
   | S8 | How is an uncaptured charge voided? | No MVP change; every charge is captured |
   | S9 | Is the spec's `email` bound of 50 a length limit? | No storefront cap needed |
   | S10 | Is the Custom Checkout Culqi's recommended checkout today? | Switch checkouts; the token contract is the same |
+  | S11 | Does Medusa drop `data.client` when `authorizePayment` returns data without it? Does Culqi refuse a token that already paid a charge? | The spent token stays visible to the storefront; it is useless without the secret key |
+  | S12 | Does Culqi's charge object show its refunds? | The lookup relies on its 20-minute window; the job relies on `data.refunds` and its own records |
 
 - F3 test plan (cards from Culqi's [Tarjetas de prueba](https://docs.culqi.com/es/documentacion/pagos-online/tarjetas-de-prueba)):
   - Keys: sandbox `pk_test_` and `sk_test_`. `validateOptions` rejects a missing key, a wrong prefix, and a live key without `liveEnabled`.
@@ -361,6 +384,11 @@
   - Duplicates: a lost response (a test double drops Culqi's answer after the charge) is followed by a retry that adopts the charge.
   - Duplicates: a charge carrying a session's metadata and no order is refunded by the job with `solicitud_comprador` after the grace period.
   - Duplicates: a second charge on a completed cart is refunded with `duplicado`.
+  - Duplicates: after the job refunded an orphan charge, a retry on the same session creates a new charge instead of adopting the refunded one.
+  - Reconciliation: a charge refunded by a failed completion's compensation gets a record with that refund. No second refund is attempted and the owner is not alerted.
+  - Classifier: an error object that is not a card error sets `charge_status: "failed"`.
+  - Currency: the session stores `pen`; the charge request sends `PEN`.
+  - Attempts: the eleventh completion of one cart within an hour answers 429 and makes no Culqi call.
   - Webhook replay: the same event posted twice is fetched twice, logged, answered `not_supported`, and changes nothing.
   - Webhook forgery: a body with an unknown event id is ignored. A real id with altered data uses only the fetched event.
   - Refunds: two partial refunds, then the rest. A refund above the captured amount is rejected before Culqi.
