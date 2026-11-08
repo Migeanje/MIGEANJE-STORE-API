@@ -1,6 +1,6 @@
 # ADR 0004 — Customer auth: Medusa owns identity, the storefront holds a Medusa session
 
-- Status: Accepted for points 1–4; points marked "(proposed)" are pending owner review
+- Status: Accepted for points 1–4, except the `rolling: false` sub-point of point 3. Every point marked "(proposed)" is pending owner review
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #107 (section 3, account), #118 (R3), #121
@@ -30,10 +30,25 @@
    - The first login after verification creates the customer (`POST /store/customers`), then opens the session.
    - A signed-in customer always has a verified email. The F1 `email_unverified` state disappears from the Medusa adapter.
    - Guest checkout does not change: guests never need an account.
-6. **Guest orders in the account** (proposed). Because the email is verified, the account lists the orders placed with that email as a guest as well as the orders placed while signed in, as F1 intended. The contract map defines the route.
-7. **Password reset** uses Medusa's reset flow: event `auth.password_reset`, a token valid for 15 minutes, email through Resend. The storefront page sets the new password with that token.
-8. **Throttling** (proposed). A custom middleware limits failed sign-ins and registrations to 10 per 15 minutes per client key (IP plus email), counted in Redis. It answers with a generic message and never says whether the email exists. Applying custom middleware to `/auth/*` routes is not verified; F3 spike. The fallback is the same limit at the edge.
-9. **Account limits** stay server-side: at most 10 addresses and at most 100 favorites (F1). Password length 8 to 128 is checked in the storefront and again by a middleware on registration and password update (proposed).
+6. **Guest orders in the account** (proposed; depends on point 5). Because the email is verified, the account lists the orders placed with that email as a guest as well as the orders placed while signed in, as F1 intended. The contract map defines the route.
+   - Point 5 is this point's only safeguard. Without verification, anyone could register with another person's email and read that person's guest orders.
+   - If the owner rejects point 5, this point is rejected with it, and the account lists only the orders placed while signed in.
+7. **Password reset** (proposed) uses Medusa's reset flow: event `auth.password_reset`, a token valid for 15 minutes, email through Resend. The storefront page sets the new password with that token.
+8. **Throttling** (proposed). A custom middleware counts failed sign-ins in Redis under three keys. One key alone misses an attack: one IP can try one password against many emails, and many IPs can target one email.
+
+   | Key | Limit | Stops |
+   |---|---|---|
+   | Client IP plus email | 10 failures per 15 minutes | One client guessing one account's password (the F1 limit) |
+   | Email, from any IP | 20 failures per 15 minutes | Many IPs attacking one account |
+   | Client IP, any email | 50 failures per 15 minutes | One IP trying a password against many accounts |
+
+   - The per-IP limit is the highest because mobile networks often put many customers behind one IP.
+   - Registrations are limited to 10 per 15 minutes per client IP.
+   - Over a limit, the route answers with the generic sign-in error and never says whether the email exists.
+   - The per-email limit lets an attacker lock one account out of sign-in for at most 15 minutes. That is the price of stopping a distributed attack on it.
+   - Medusa sees the storefront server's address, not the customer's, because sign-in runs on the storefront server (point 2). The storefront forwards the client IP. How Medusa trusts it is open item C5 of the contract map.
+   - Applying custom middleware to `/auth/*` routes is not verified; F3 spike. The fallback is the same limits at the edge.
+9. **Account limits** (proposed) stay server-side: at most 10 addresses and at most 100 favorites, as in F1. Password length 8 to 128 is checked in the storefront and again by a middleware on registration and password update.
 
 ## Consequences
 
