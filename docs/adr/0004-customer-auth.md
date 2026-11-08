@@ -43,10 +43,16 @@
    | Client IP, any email | 50 failures per 15 minutes | One IP trying a password against many accounts |
 
    - The per-IP limit is the highest because mobile networks often put many customers behind one IP.
-   - Registrations are limited to 10 per 15 minutes per client IP.
    - Over a limit, the route answers with the generic sign-in error and never says whether the email exists.
-   - The per-email limit lets an attacker lock one account out of sign-in for at most 15 minutes. That is the price of stopping a distributed attack on it.
-   - Medusa sees the storefront server's address, not the customer's, because sign-in runs on the storefront server (point 2). The storefront forwards the client IP. How Medusa trusts it is open item C5 of the contract map.
+   - **The per-email limit is a lockout an attacker can hold.** Twenty failures every 15 minutes keep one account locked out of sign-in for as long as the attack lasts. That is the price of stopping a distributed attack on it.
+     - Password reset (point 7) stays available during a lockout. A completed reset clears that email's counters, so the customer signs in with the new password right away and keeps the 7-day session.
+     - Reset requests (`POST /auth/customer/emailpass/reset-password`) are limited to 3 per hour per email and 10 per hour per client IP, so a lockout cannot become a flood of reset emails. Medusa answers that route with success even when the email does not exist ([Reset password in storefront](https://docs.medusajs.com/resources/storefront-development/customers/reset-password)); the throttled answer looks the same.
+   - Registrations are limited to 30 per hour per client IP, against mass account creation. The limit is set well above a small store's normal rate because customers behind one mobile IP share it, the same reason the per-IP sign-in limit is the highest.
+   - **The client IP is trusted only from the storefront server.** Sign-in runs on the storefront server (point 2), so Medusa sees that server's address, not the customer's.
+     - The storefront forwards the client IP on requests that carry its server credential, a shared secret header kept only on the storefront server.
+     - Medusa uses the forwarded IP only on requests with that credential. Any other caller is counted by its own address, and a forwarded header it sends is ignored, so an attacker cannot rotate IPs through the header. Open item C5 of the contract map tracks the mechanism.
+     - Without a trusted client IP, the per-IP counts are skipped, never keyed on the storefront server's address: one shared bucket would lock every customer out at once. The per-email count still applies, and each skip is logged.
+   - Redis also holds the sessions (point 4), so sign-in already depends on it. If Redis is unavailable, the middleware refuses sign-in with the generic error rather than letting attempts through uncounted.
    - Applying custom middleware to `/auth/*` routes is not verified; F3 spike. The fallback is the same limits at the edge.
 9. **Account limits** (proposed) stay server-side: at most 10 addresses and at most 100 favorites, as in F1. Password length 8 to 128 is checked in the storefront and again by a middleware on registration and password update.
 
