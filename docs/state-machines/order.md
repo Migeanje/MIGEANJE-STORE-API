@@ -26,7 +26,10 @@ stateDiagram-v2
     pagado --> cancelado: order canceled
     en_importacion --> cancelado: order canceled
     preparando --> cancelado: fulfillment canceled, then order canceled
-    en_camino --> reembolsado: full refund
+    pagado --> reembolsado: full refund without cancel
+    en_importacion --> reembolsado: full refund without cancel
+    preparando --> reembolsado: full refund without cancel
+    en_camino --> reembolsado: full refund, e.g. lost in transit
     entregado --> reembolsado: return and full refund
     entregado --> [*]
     cancelado --> [*]
@@ -46,7 +49,9 @@ stateDiagram-v2
 | `en_camino` | `entregado` | The owner marks the fulfillment delivered | `fulfillment_status` is `delivered` (a partial delivery stays `en_camino`) |
 | `pagado`, `en_importacion` | `cancelado` | `cancelOrderWorkflow` (`order.canceled`) | No fulfillment that is not canceled; captured payments are refunded by the workflow |
 | `preparando` | `cancelado` | The owner cancels the fulfillment, then the order | Same as above |
-| `en_camino`, `entregado` | `reembolsado` | `refundPaymentWorkflow` refunds the rest of the captured amount | The order is not canceled; refunded total equals captured total |
+| `en_camino` | `reembolsado` | `refundPaymentWorkflow` refunds the rest of the captured amount, for example when the carrier lost the order | The order is not canceled; refunded total equals captured total |
+| `entregado` | `reembolsado` | A return, then `refundPaymentWorkflow` refunds the rest of the captured amount | Same as above |
+| `pagado`, `en_importacion`, `preparando` | `reembolsado` | `refundPaymentWorkflow` refunds the rest of the captured amount without canceling the order | Same as above. Not the intended path: before shipment the owner cancels the order (`cancelado`). Open procurement items stay open, because no `order.canceled` event fires; the owner cancels them |
 
 ## Events that do not change the status
 
