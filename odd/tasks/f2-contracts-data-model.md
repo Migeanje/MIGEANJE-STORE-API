@@ -74,6 +74,11 @@ Passive documentation: structural readback of each file, link check of relative 
   - Fixes in `a8883bd` (ADR 0004): the per-email lockout lasts as long as the attack; reset stays available and clears the counters; reset requests are throttled; registrations are 30 per hour per IP; the forwarded IP is trusted only with the storefront server credential, and per-IP counts are skipped without it; Redis down refuses sign-in.
   - Fixes in `c75ec68` (ADR 0005): any 5xx goes to the lookup and only a 4xx request error is `failed`; the attempt cap skips the per-IP count without a trusted IP and fails open without Redis; over-cap copy says one hour; the refunded-charge skip is its own job step; grace period and lookup window cross-referenced.
   - Both merged forward through every later branch; the contract map rows and C5 were updated to match. The hook's combined candidate since `55c7239` stays unanswered by the owner.
+- 2026-11-08: third review round. Owner, verbatim: "a1 b1  c1". The second fix commits (`a8883bd`, `c75ec68`) and the combined candidate `55c7239..c75ec68` (7 files, 695 lines, four lenses) were reviewed, approved with advisory findings and acknowledged. Owner on the third batch, verbatim: "dale aplicala".
+  - `feb74f0` (ADR 0003, order state machine): capture at placement marked as pending spike S1 of ADR 0005 instead of confirmed; `reembolsado` reachable from every progress state, with triggers.
+  - `a0dde68` (ADR 0004): credential and IP forwarding ship with the throttle; a credentialed request without an IP skips per-IP counts and alerts; reset quota exhaustion and manual unlock; reset 30 per hour per IP; registrations back to 10 per 15 minutes; session revocation on reset as an F3 spike.
+  - `232e45f` (ADR 0005): compensated refunds are never adopted (spike S13, adopt-nothing fallback); the job records before refunding and holds a run lock; the webhook makes no Culqi call while it only logs; live keys wait for C5; Redis outage alert; 4xx without a body goes to the lookup; 3DS failure in the "no charge" rule; 10-minute minimum margin.
+  - Merged forward from `docs/f2-orders` through every later branch; the contract map webhook row, throttle rows and C5 were updated to match.
 
 ## Decisions log
 
