@@ -88,6 +88,14 @@ Passive documentation: structural readback of each file, link check of relative 
   - `1b9478d` (order state machine, ADR 0002): canceling the only fulfillment returns to `pagado` only without procurement items, otherwise to `en_importacion`, matching ADR 0003 rule 6 (a contradiction introduced by `d15a85a`); guest tracking fails closed when Redis is down.
   - `e2b7282` (ADR 0005): a failed lost-response lookup never charges; refund retries only when spike S12 confirms immediate visibility, 30 minutes later, at most three times (resolves the step 5 versus step 7 contradiction introduced by `4c0da9b`); job lease of 20 minutes renewed every 5, alert after three skipped runs, coupling stated.
   - `1533c50` (culqi data model): `listStuck` follows the safe retry rule.
+- 2026-11-09: sixth review round. Owner, verbatim: "a1 b1 c1" (no group A that round; B and C were granted). `e2b7282` and the combined candidate `55c7239..e2b7282` (7 files, 748 lines) were reviewed, approved and acknowledged. Owner on the serious findings, verbatim: "si porfavor aplicatlos".
+  - `484b154` (ADR 0005):
+    - A lookup that fails after a charge request that may have reached Culqi ends `unknown`, never `failed`. This fixes a double-charge risk introduced by `e2b7282`.
+    - Compensation of a captured charge runs through `refundPayment`, which records refunds and clears `charge_id` like `cancelPayment`.
+    - The reconciliation job scans from a watermark with a 50-request budget and stops on `limit_api_error` (spike S14).
+    - The refund retry wait is anchored on `refund_attempted_at` and restarts after every attempt.
+    - A run that loses its lease stops before refunding; the unique record insert lets only one run refund a charge.
+  - `c246ecb` (culqi data model): `refund_attempted_at` and `refund_attempts` on `culqi_reconciliation`; new `culqi_job_run` model (prefix `culrun`) for the watermark and stall alerts; `recordCharge` reports whether it created the record.
 
 ## Decisions log
 
