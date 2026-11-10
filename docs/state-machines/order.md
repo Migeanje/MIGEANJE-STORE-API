@@ -22,7 +22,7 @@ stateDiagram-v2
     en_importacion --> preparando: fulfillment exists and every item received
     preparando --> pagado: fulfillment canceled
     preparando --> en_camino: fulfillment shipped
-    en_camino --> entregado: every item delivered
+    en_camino --> entregado: fulfillment_status delivered
     pagado --> cancelado: order canceled
     en_importacion --> cancelado: order canceled
     preparando --> cancelado: fulfillment canceled, then order canceled
@@ -41,7 +41,7 @@ stateDiagram-v2
 | From | To | Trigger | Guard |
 |---|---|---|---|
 | — | `pagado` | `completeCartWorkflow` creates the order (`order.placed`) | Payment authorized; the order has no procurement items |
-| — | `en_importacion` | `completeCartWorkflow` creates the order; a subscriber on `order.placed` creates its procurement items | At least one line needs procurement (ADR 0007) |
+| — | `en_importacion` | `completeCartWorkflow` creates the order; a subscriber on `order.placed` creates its procurement items | At least one line needs procurement (ADR 0007, later in this chain). Until the subscriber runs, the order shows `pagado`. F3 makes it retry and alerts the owner when it keeps failing |
 | `pagado` | `preparando` | The owner creates a fulfillment in the admin | — |
 | `en_importacion` | `preparando` | The last procurement item is received, or the fulfillment is created, whichever comes last | A fulfillment that is not canceled exists and every procurement item that is not canceled is received |
 | `preparando` | `pagado` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled. Every procurement item is already received, so the order does not return to `en_importacion` |
@@ -57,6 +57,7 @@ stateDiagram-v2
 
 - **Partial refund.** It adds a line to the refunds list; the status stays.
 - **Fulfillment created before the goods arrive.** The order stays `en_importacion` until every procurement item is received.
+- **Goods received before the fulfillment exists.** The order stays `en_importacion` until the owner creates the fulfillment. It never goes back to `pagado` (ADR 0003, rule 6).
 - **Partial delivery.** The order stays `en_camino`.
 
 ## Side effects
