@@ -96,15 +96,49 @@ Passive documentation: structural readback of each file, link check of relative 
     - The refund retry wait is anchored on `refund_attempted_at` and restarts after every attempt.
     - A run that loses its lease stops before refunding; the unique record insert lets only one run refund a charge.
   - `c246ecb` (culqi data model): `refund_attempted_at` and `refund_attempts` on `culqi_reconciliation`; new `culqi_job_run` model (prefix `culrun`) for the watermark and stall alerts; `recordCharge` reports whether it created the record.
+- 2026-11-10: seventh and last review round. Owner, verbatim: "Doy mi consentimiento a la ronda 7. Después de esa ronda no hagas más revisiones de F2: lo que aparezca se anota como pendiente de F3."
+  - Fixes:
+    - `f570f17` (order state machine, ADR 0003): canceling procurement items without canceling the order.
+    - `3e280b2` (ADR 0005): job resume cursor, conditional retry claim, only `Completa` refunds clear `charge_id`, deleted-session orphans resolved through the cart, uncaptured cancel path clarified, `try_again` covers a failed pre-charge lookup, `validate` hook lists the currency check.
+    - `15dde6d` (culqi data model): cursor fields on `culqi_job_run`, `claimRefundAttempt` as a conditional update.
+  - Reviews: `3e280b2` and the combined candidate `55c7239..3e280b2` (7 files, 774 lines) were granted under that consent, approved and acknowledged. `f570f17` and `15dde6d` were assessed passive.
+  - Review record of T3 and T4: seven rounds each, every one approved and acknowledged; no blocking finding was ever raised.
+
+## Pending for F3
+
+Findings of the seventh round and earlier non-blocking items, deferred by the owner's decision above. F3 resolves them while it writes the code test-first.
+
+- ADR 0005, reconciliation job:
+  - The resume cursor can pass a charge that is still inside its grace period during a multi-run drain, and the watermark can later pass it too. Keep unclassifiable charges behind the cursor, or rescan the last hour on every resume.
+  - Where a resumed run's window ends (the original end or the new run's start) is not stated.
+  - The listing-order check and the rate-limit measurement both sit under spike S14; split them.
+- ADR 0005, compensation refunds: no actor writes a later `Completa` back into the session's `data.refunds` and clears `charge_id`. A session whose compensation refund was `Pendiente` stays `pending` on every retry. Decide the write-back owner, or document that the customer needs a new session.
+- ADR 0005, copy: after a failed pre-charge lookup, "No se hizo ningún cargo" is true only for this attempt. A session whose earlier attempt ended `unknown` already stays `pending`; the wording should say "this attempt".
+- ADR 0005, optional hardening: the `liveEnabled` startup guard could refuse live completion instead of only alerting, reading a shared environment flag.
+- ADR 0003 and the order state machine:
+  - A partial shipment with open procurement items shows `en_camino`, because rule 4 outranks rules 5 and 6. Specify it and add a test.
+  - `preparando → cancelado` is really a two-step path through `pagado` or `en_importacion`; redraw it.
+- ADR 0002:
+  - `display_id` past 999999 breaks `formatOrderNumber`. Add a threshold alert or a boundary test.
+  - Guest tracking rules (Lima year at the UTC boundary, identical "not found", fail-closed 429) have no named tests.
+- ADR 0004: the shared-IP rationale for the reset limit is stated twice.
+- Owner decision before live keys: the payment attempt cap fails open when Redis is down (ADR 0005, decision 4).
+- Intermediate branches carry an older copy of this document whose "Next step" says "T3–T6 in progress". It disappears as the chain merges in order; this copy on `docs/f2-contract-map` is the current one.
 
 ## Decisions log
 
 - D1 (2026-10-12, ADR 0001): amounts with fractions of a céntimo. Payable amounts are strict (the converter throws); informative amounts (tax breakdown) round half-up to two decimals. Rejected: rounding everything at the boundary, because a rounded charge would differ from the payment Medusa recorded and break reconciliation silently.
 - D2 (2026-11-04, ADR 0002): order number `MG-YYYY-NNNNNN` is a formatting of Medusa `display_id` (Lima year of `created_at`, zero-padded to six digits). No counter, no `custom_display_id`. Rejected: own yearly correlative (counter plus a subscriber, number missing until it runs). Accepted cost: no yearly reset, reveals volume, admin shows `#412`.
-- D3 (2026-11-04, ADR 0003): `cancelado` beats `reembolsado`. A canceled order shows `cancelado` with its refund as a detail line; `reembolsado` only for a full refund of an order that was not canceled (after shipment). Partial refunds never change the status. Rejected: `reembolsado` first, because every paid order that is canceled is refunded, so `cancelado` would almost never show.
+- D3 (2026-11-04, ADR 0003): `cancelado` beats `reembolsado`. A canceled order shows `cancelado` with its refund as a detail line; `reembolsado` only for a full refund of an order that was not canceled (normally after shipment; a full refund without cancellation earlier shows it too). Partial refunds never change the status. Rejected: `reembolsado` first, because every paid order that is canceled is refunded, so `cancelado` would almost never show.
 
 - D4 (2026-11-04, ADR 0004): Medusa cookie session. The Next.js server logs in, opens the session with `POST /auth/session` and keeps the session id in its own httpOnly cookie. Logout destroys the session in Medusa. TTL 7 days. Redis in production. Rejected: JWT in a cookie, because logout cannot revoke it.
 
 ## Next step
 
-Owner review of every proposed point, then T10. The slices are stacked PRs to `main`, opened and merged in this order: `docs/f2-money` → `docs/f2-orders` → `docs/f2-auth` → `docs/f2-payments` → `docs/f2-complaints` → `docs/f2-catalog-rules` → `docs/f2-data-model-catalog` → `docs/f2-data-model-operations` → `docs/f2-seed-plan` → `docs/f2-contract-map`. After each squash merge, `main` is merged into the next branch so its diff shows only its own slice. Size: the two data model slices exceed 400 lines (about 480 and 760). Each module page is cohesive and splitting further would separate links from their models, so they need a `size:exception` from the owner. The other slices are under 400.
+Open before T10, as of 2026-11-10:
+
+- Owner decisions still open: contract map conflicts C1–C6, and the holiday inconsistency. ADR 0006 counts holidays as business days and rejects keeping a holiday calendar, while the ubigeo-shipping data model keeps a `holiday` table for delivery estimates and its `addBusinessDays` skips holidays. The complaints deadline must never use that helper.
+- Owner review of every proposed point.
+- The 10 pull requests are not open yet: `origin` has no pull request refs. The owner opens them from the compare links.
+
+Then T10. The slices are stacked PRs to `main`, opened and merged in this order: `docs/f2-money` → `docs/f2-orders` → `docs/f2-auth` → `docs/f2-payments` → `docs/f2-complaints` → `docs/f2-catalog-rules` → `docs/f2-data-model-catalog` → `docs/f2-data-model-operations` → `docs/f2-seed-plan` → `docs/f2-contract-map`. After each squash merge, `main` is merged into the next branch so its diff shows only its own slice. Size: the two data model slices exceed 400 lines (about 480 and 760). Each module page is cohesive and splitting further would separate links from their models, so they need a `size:exception` from the owner. The other slices are under 400.
