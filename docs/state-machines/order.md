@@ -20,7 +20,8 @@ stateDiagram-v2
     [*] --> en_importacion: order placed, with procurement items
     pagado --> preparando: fulfillment created
     en_importacion --> preparando: fulfillment exists and every item received
-    preparando --> pagado: fulfillment canceled
+    preparando --> pagado: fulfillment canceled, no procurement items
+    preparando --> en_importacion: fulfillment canceled, with procurement items
     preparando --> en_camino: fulfillment shipped
     en_camino --> entregado: fulfillment_status delivered
     pagado --> cancelado: order canceled
@@ -44,7 +45,8 @@ stateDiagram-v2
 | — | `en_importacion` | `completeCartWorkflow` creates the order; a subscriber on `order.placed` creates its procurement items | At least one line needs procurement (ADR 0007, later in this chain). Until the subscriber runs, the order shows `pagado`. F3 makes it retry and alerts the owner when it keeps failing |
 | `pagado` | `preparando` | The owner creates a fulfillment in the admin | — |
 | `en_importacion` | `preparando` | The last procurement item is received, or the fulfillment is created, whichever comes last | A fulfillment that is not canceled exists and every procurement item that is not canceled is received |
-| `preparando` | `pagado` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled. Every procurement item is already received, so the order does not return to `en_importacion` |
+| `preparando` | `pagado` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled, and the order has no procurement items that are not canceled |
+| `preparando` | `en_importacion` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled, and the order has procurement items that are not canceled, even if all were received (ADR 0003, rule 6). It returns to `preparando` when a new fulfillment is created |
 | `preparando` | `en_camino` | The owner creates the shipment (`shipped_at` set) | — |
 | `en_camino` | `entregado` | The owner marks the fulfillment delivered | `fulfillment_status` is `delivered` (a partial delivery stays `en_camino`) |
 | `pagado`, `en_importacion` | `cancelado` | `cancelOrderWorkflow` (`order.canceled`) | No fulfillment that is not canceled; captured payments are refunded by the workflow |
