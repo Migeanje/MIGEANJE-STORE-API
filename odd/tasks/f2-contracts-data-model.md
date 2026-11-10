@@ -79,6 +79,11 @@ Passive documentation: structural readback of each file, link check of relative 
   - `a0dde68` (ADR 0004): credential and IP forwarding ship with the throttle; a credentialed request without an IP skips per-IP counts and alerts; reset quota exhaustion and manual unlock; reset 30 per hour per IP; registrations back to 10 per 15 minutes; session revocation on reset as an F3 spike.
   - `232e45f` (ADR 0005): compensated refunds are never adopted (spike S13, adopt-nothing fallback); the job records before refunding and holds a run lock; the webhook makes no Culqi call while it only logs; live keys wait for C5; Redis outage alert; 4xx without a body goes to the lookup; 3DS failure in the "no charge" rule; 10-minute minimum margin.
   - Merged forward from `docs/f2-orders` through every later branch; the contract map webhook row, throttle rows and C5 were updated to match.
+- 2026-11-09: fourth review round. Owner, verbatim: "a1 b1 c1". The third fix commits (`a0dde68`, `232e45f`) and the combined candidate `55c7239..232e45f` (7 files, 721 lines) were reviewed, approved with advisory findings and acknowledged. Owner on the fourth batch, verbatim: "aplica mano dale de una". From here on only serious findings are brought back, not wording.
+  - `d15a85a` (ADRs 0002 and 0003, order state machine): rule 6 keeps `en_importacion` until a fulfillment exists, so goods received before the fulfillment never send the order back to `pagado` (a bug in accepted ADR 0003); the procurement subscriber retries and alerts; ADR 0005 decision 6 owns capture at placement; the guest tracking throttle is enforced in the backend with a trusted client IP.
+  - `02296d1` (ADR 0004): which counters the admin unlock clears, reset per-IP rationale, window units.
+  - `4c0da9b` (ADR 0005): job lock as a renewed lease with stall alerts; a failed refund call is retried under the same record only when S12 shows no refund; webhook reads id and type only, with bounded logging; `liveEnabled` is an operational precondition with a startup alert; Redis fail-open trade-off stated for the owner; guard row points to the S12/S13 fallback.
+  - `358e383` (culqi data model): `listStuck` follows the retry rule.
 
 ## Decisions log
 
