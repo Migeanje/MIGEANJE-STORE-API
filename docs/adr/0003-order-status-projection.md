@@ -58,7 +58,7 @@
 
 - No status column means no status that drifts from reality. Every status change comes from a Medusa workflow or a procurement transition that already exists.
 - In-stock orders show `pagado` until the owner creates the fulfillment, as in F1.
-- The projection is the most tested piece of order tracking. F3 writes it test-first with one case per precedence row, plus: canceled and refunded, partial refund, full refund before shipment without cancellation (`reembolsado`), fulfillment created before the goods arrive, every item received before the fulfillment exists (stays `en_importacion`), procurement subscriber not run yet (`pagado`), canceled fulfillment, and partial delivery (stays `en_camino`).
+- The projection is the most tested piece of order tracking. F3 writes it test-first with one case per precedence row, plus: canceled and refunded, partial refund, full refund before shipment without cancellation (`reembolsado`), fulfillment created before the goods arrive, every item received before the fulfillment exists (stays `en_importacion`), procurement subscriber not run yet (`pagado`), last open procurement item canceled without canceling the order (`preparando` with a fulfillment, `pagado` without one), canceled fulfillment, and partial delivery (stays `en_camino`).
 - Once an order is shipped, the only way out is a full refund: after a return, or when the carrier lost the order. Canceling an order that is in `preparando` requires canceling its fulfillment first.
 - Canceling an order must also cancel its open procurement items. A subscriber on `order.canceled` does it, following the procurement item state machine (T6).
 - Storefront follow-up (F4):
