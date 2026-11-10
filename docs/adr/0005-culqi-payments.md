@@ -209,6 +209,10 @@
      - The lookup window (20 minutes) ends before the job's grace period (30 minutes, decision 15) starts. The job refunds an orphan charge only after the lookup can no longer adopt it, and the 10-minute gap covers a completion still in progress.
      - The lookup also skips a charge that Culqi reports as refunded, if the charge object shows it (F3 spike S12).
      - Cost: a retry more than 20 minutes after a lost response charges again. The job refunds the first charge after its grace period. Meanwhile the storefront shows "No vuelvas a pagar" (decision 14) while `charge_status` is `unknown`.
+   - **If the lookup itself fails** (timeout, 5xx or `limit_api_error`), the provider does not charge. Charging without the lookup could charge twice after a lost response, which is the case the lookup exists for.
+     - A session whose earlier attempt ended `unknown` stays `unknown` (`pending` for the customer).
+     - Any other session ends `error` with `charge_status: "failed"` and `decline_reason: "try_again"`. This attempt made no charge, so "No se hizo ningún cargo" is true.
+     - Cost: while Culqi cannot list charges, checkout cannot charge. That is the price of never charging twice.
    - Neither the `charge_id` guard nor the lookup adopts a charge refunded by a failed completion's compensation. That refund happens at once, inside the lookup window.
      - `cancelPayment` records the refund in `data.refunds` and clears `charge_id` (decision 12). The guard then finds no charge, and the lookup skips every charge listed in `data.refunds`.
      - Whether Medusa writes the data `cancelPayment` returns back to the session, where `authorizePayment` reads it, is not verified; F3 spike S13.
@@ -340,15 +344,18 @@
          - A failed completion's compensation refunds through `cancelPayment` (decision 12), which records the refund in the session's `data.refunds`. A charge covered by it gets its record with that refund, no new refund call and no owner alert.
          - If the charge object shows refunds (F3 spike S12), the job checks it too, which also covers a refund made in the CulqiPanel.
          - A deleted session takes its `data.refunds` with it. The job then cannot resolve the charge, so it is `unresolved` (step 3) and never refunded automatically. The owner closes that one record.
-      5. For the remaining `duplicate` and `orphan` charges, checks again that no order references the charge, then **writes the `culqi_reconciliation` record first**, with status `refund_pending` and no `refund_id`. Only then does it refund the charge in full (`duplicado` for `duplicate`, `solicitud_comprador` for `orphan`) and store the `refund_id`. A crash between the two leaves the record, so no later run refunds the charge again. An `unresolved` charge is never refunded automatically.
+      5. For the remaining `duplicate` and `orphan` charges, checks again that no order references the charge, then **writes the `culqi_reconciliation` record first**, with status `refund_pending` and no `refund_id`. Only then does it refund the charge in full (`duplicado` for `duplicate`, `solicitud_comprador` for `orphan`) and store the `refund_id`. A crash between the two leaves the record. Step 5 never runs again for a charge that has a record; only step 7 decides whether that refund is retried. An `unresolved` charge is never refunded automatically.
       6. Writes the record for every other charge that is not `matched`: `unresolved` ones and ones found already refunded. It alerts the owner, except for a charge it found already refunded.
       7. Re-checks pending refunds. `Rechazado` alerts the owner.
          - A `refund_pending` record without a `refund_id` means a run stopped mid-refund, or the refund call failed (a 5xx or a timeout). The owner is alerted the first time the job finds it.
-         - If S12 allows it, the job checks the charge's refunds at Culqi. When it finds the refund, it stores the `refund_id`. When it finds none, it retries the refund under the same record on each run until Culqi answers.
-         - Without S12 the job cannot tell whether the call reached Culqi, so it never retries blindly. The owner checks the CulqiPanel and closes the record.
+         - A retry is safe only if a refund Culqi accepted always shows on the charge at once. Otherwise a refund accepted but not yet listed would be requested twice. Whether Culqi rejects a refund above the charge's remaining amount is not verified either.
+         - So the job retries only when F3 spike S12 confirms that the charge object shows its refunds and shows a new one immediately. Even then it waits at least 30 minutes after the failed call, checks the charge's refunds, and stores the `refund_id` if it finds one.
+         - When it finds none, it retries once per run under the same record. After three failed retries, it alerts the owner and stops retrying.
+         - Without that confirmation the job never retries. The owner checks the CulqiPanel and closes the record.
     - **One run at a time.** The job holds a job-level lock (in Redis or the database; F3 picks the mechanism) for the whole run. A run that finds the lock taken, because the previous run outlasted the 15-minute interval, does nothing.
-      - The lock is a lease with a 30-minute TTL, longer than the longest expected run, renewed while the run works. A run killed by a deploy or a crash stops renewing it, the lease expires, and a later run proceeds.
-      - The owner is alerted when two runs in a row find the lock taken, or when no run has completed for an hour. The job scans only the last 48 hours, so a stalled job must be noticed before charges age out of the scan.
+      - The lock is a lease with a 20-minute TTL, renewed every 5 minutes while the run works, so a long run keeps it. A run killed by a deploy or a crash stops renewing it, the lease expires, and a later run proceeds.
+      - The owner is alerted when three runs in a row find the lock taken, or when no run has completed for an hour. The job scans only the last 48 hours, so a stalled job must be noticed before charges age out of the scan.
+      - **These numbers are coupled.** The TTL must stay shorter than two run intervals (30 minutes). A run killed by a routine deploy then causes at most two skipped runs, below the three-skip alert, so deploys raise no false alarm. Change the TTL, the interval and the threshold together.
     - The 30-minute grace period keeps the job away from a completion still in progress.
     - **The grace period and the lookup window are coupled.** The grace period (30 minutes) must stay longer than the lost-response lookup window (20 minutes, decision 8) plus a margin of at least 10 minutes, the longest a completion is expected to stay in progress. Otherwise the job could refund a charge the lookup still adopts, and the order would ship unpaid. Change both numbers together.
     - F1 port mapping:
@@ -405,15 +412,16 @@
   - Duplicates: two concurrent completions of one cart give one order and one Culqi charge.
   - Duplicates: a completion repeated after success returns the same order and creates no charge.
   - Duplicates: a lost response (a test double drops Culqi's answer after the charge) is followed by a retry that adopts the charge.
+  - Duplicates: when the lookup fails, no charge is posted; a session that ended `unknown` stays `unknown`, any other ends `failed` with `try_again`.
   - Duplicates: a charge carrying a session's metadata and no order is refunded by the job with `solicitud_comprador` after the grace period.
   - Duplicates: a second charge on a completed cart is refunded with `duplicado`.
   - Duplicates: after the job refunded an orphan charge, a retry on the same session creates a new charge instead of adopting the refunded one.
   - Duplicates: after a failed completion's compensation refunded the charge, a retry on the same session creates a new charge and never adopts the refunded one.
   - Reconciliation: a charge refunded by a failed completion's compensation gets a record with that refund. No second refund is attempted and the owner is not alerted.
-  - Reconciliation: a run stopped between the record and the refund call leaves a `refund_pending` record, and the next run does not refund the charge again.
+  - Reconciliation: a run stopped between the record and the refund call leaves a `refund_pending` record. Step 5 does not refund the charge again; step 7 retries only under the S12 conditions.
   - Reconciliation: a run that starts while the previous one holds the lock does nothing.
-  - Reconciliation: a run killed while holding the lock lets its lease expire, and a later run proceeds. Two skipped runs in a row alert the owner.
-  - Reconciliation: a refund call that fails with a 5xx or times out leaves a `refund_pending` record and alerts the owner. With S12, the next run retries it under the same record; without S12, it does not retry.
+  - Reconciliation: a run killed right after renewing its lease causes at most two skipped runs and no alert; a later run proceeds. Three skipped runs in a row alert the owner.
+  - Reconciliation: a refund call that fails with a 5xx or times out leaves a `refund_pending` record and alerts the owner. With S12 confirmed, a run at least 30 minutes later retries it under the same record, at most three times; without S12, it never retries.
   - Classifier: a 4xx error object that is not a card error sets `charge_status: "failed"`. A 5xx with an error body, and a 4xx without a parseable body, go to the lookup and end `unknown` when the lookup finds nothing.
   - Currency: the session stores `pen`; the charge request sends `PEN`.
   - Attempts: the eleventh completion of one cart within an hour answers 429 and makes no Culqi call.
