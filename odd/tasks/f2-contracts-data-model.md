@@ -84,6 +84,10 @@ Passive documentation: structural readback of each file, link check of relative 
   - `02296d1` (ADR 0004): which counters the admin unlock clears, reset per-IP rationale, window units.
   - `4c0da9b` (ADR 0005): job lock as a renewed lease with stall alerts; a failed refund call is retried under the same record only when S12 shows no refund; webhook reads id and type only, with bounded logging; `liveEnabled` is an operational precondition with a startup alert; Redis fail-open trade-off stated for the owner; guard row points to the S12/S13 fallback.
   - `358e383` (culqi data model): `listStuck` follows the retry rule.
+- 2026-11-09: fifth review round. Owner, verbatim: "a1 b1 c1". The fourth fix commits (`02296d1`, `4c0da9b`) and the combined candidate `55c7239..4c0da9b` (7 files, 737 lines) were reviewed, approved and acknowledged. Only serious findings were brought back. Owner, verbatim: "apliquemos los 5".
+  - `1b9478d` (order state machine, ADR 0002): canceling the only fulfillment returns to `pagado` only without procurement items, otherwise to `en_importacion`, matching ADR 0003 rule 6 (a contradiction introduced by `d15a85a`); guest tracking fails closed when Redis is down.
+  - `e2b7282` (ADR 0005): a failed lost-response lookup never charges; refund retries only when spike S12 confirms immediate visibility, 30 minutes later, at most three times (resolves the step 5 versus step 7 contradiction introduced by `4c0da9b`); job lease of 20 minutes renewed every 5, alert after three skipped runs, coupling stated.
+  - `1533c50` (culqi data model): `listStuck` follows the safe retry rule.
 
 ## Decisions log
 

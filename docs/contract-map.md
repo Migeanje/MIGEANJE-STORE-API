@@ -234,7 +234,7 @@ Paths marked "this map" are named here for the first time (proposed). The others
 | POST | `/store/complaints` | complaints (`fileComplaintWorkflow`, `sendComplaintCopyWorkflow`) | public, throttled | File a Hoja de Reclamación | [ADR 0006](adr/0006-complaints-book.md), decision 3 |
 | GET | `/store/complaints/:number` | complaints | guest (`x-complaint-access-token`), first hour | Constancia | ADR 0006, decision 3 |
 
-Throttles (proposed where the source sets no number): tracking keeps F1's 10 failures per 15 minutes in the storefront and enforces it in the backend route too, counted in Redis per client IP and per email, with the client IP trusted only from the storefront server (ADR 0002, decision 5). Complaints: 5 filings per hour per client key in the storefront, 30 per hour per source IP in Medusa (ADR 0006). "Avísame": the complaints numbers (this map). See open item C5.
+Throttles (proposed where the source sets no number): tracking keeps F1's 10 failures per 15 minutes in the storefront and enforces it in the backend route too, counted in Redis per client IP and per email, with the client IP trusted only from the storefront server. With Redis down, the route fails closed and answers 429 (ADR 0002, decision 5). Complaints: 5 filings per hour per client key in the storefront, 30 per hour per source IP in Medusa (ADR 0006). "Avísame": the complaints numbers (this map). See open item C5.
 
 ### Admin
 
