@@ -126,7 +126,7 @@
    | 3 | Browser | `Culqi3DS.generateDevice()` returns the device id. The Custom Checkout returns the token id |
    | 4 | Storefront server | Re-reads the cart and compares the quote (decision 8). On a match, calls the Update Payment Session route with `client_data: { token_id, email, device_finger_print_id }` |
    | 5 | Storefront server | `POST /store/carts/:id/complete` |
-   | 6 | Medusa | `validate` hook: the session's `amount_cents` equals the cart total in céntimos, and `data.client.email` equals the cart email. A mismatch throws before the order exists |
+   | 6 | Medusa | `validate` hook: the session's `amount_cents` equals the cart total in céntimos, its `currency_code` equals the cart's currency, and `data.client.email` equals the cart email. A mismatch throws before the order exists |
    | 7 | Provider | `authorizePayment` runs the duplicate guards (decision 8), then `POST /v2/charges` |
    | 8 | Provider | Classifies Culqi's answer (table below) and returns the session status |
 
@@ -214,8 +214,10 @@
      - **After a charge request that may have reached Culqi** (no answer, a 5xx or an unparseable answer), the session always ends `unknown` (`pending`), never `failed`. Culqi may have charged the card, so the customer reads "No vuelvas a pagar" and the job settles the charge.
      - Cost: while Culqi cannot list charges, checkout cannot charge. That is the price of never charging twice.
    - Neither the `charge_id` guard nor the lookup adopts a charge refunded by a failed completion's compensation. That refund happens at once, inside the lookup window.
-     - `compensatePaymentIfNeededStep` refunds a captured payment and cancels an uncaptured one (Medusa context above). Every MVP charge is captured (decision 6), so compensation normally runs through `refundPayment` (decision 11). `cancelPayment` (decision 12) covers the uncaptured case of the S1 fallback.
-     - Both methods record every refund in `data.refunds` with its status, and clear `charge_id` once the refunds cover the charge's full amount. The guard then finds no charge, and the lookup skips every charge listed in `data.refunds`.
+     - `compensatePaymentIfNeededStep` refunds a captured payment and cancels an uncaptured one (Medusa context above). Every MVP charge is captured (decision 6), so compensation normally runs through `refundPayment` (decision 11). `cancelPayment` (decision 12) runs when Medusa counts the payment as uncaptured, which happens only under the S1 fallback. At Culqi the charge is captured either way, so both methods refund it.
+     - Both methods record every refund that is not `Rechazado` in `data.refunds` with its status. They clear `charge_id` only once the `Completa` refunds cover the charge's full amount.
+     - The guard never adopts a charge that has any refund in `data.refunds`, `Pendiente` included. It ends `unknown` (`pending`) and the job settles it. The lookup skips every charge listed in `data.refunds`.
+     - A refund that turns `Rechazado` later is not counted, so the charge still counts as charged, and its compensation failure reaches the owner through the job.
      - Whether Medusa writes the data `refundPayment` or `cancelPayment` returns back to the session, where `authorizePayment` reads it, is not verified; F3 spike S13.
      - If S12 holds, the provider also checks the charge's refunds at Culqi before adopting. That covers this case without S13.
      - If S12 and S13 both fail, the provider adopts nothing. An existing `charge_id` or a lookup match ends in `charge_status: "unknown"` (`pending` for the customer), and the job settles the charge. A lost response then costs a refund and a new payment, never an unpaid order.
@@ -286,7 +288,7 @@
     - Partial and repeated refunds are allowed. Medusa rejects a refund above the captured amount before the provider runs.
     - Culqi status `Rechazado` makes `refundPayment` throw, so Medusa records no refund.
     - Every refund that is not `Rechazado` is recorded in `data.refunds` with its status. The job re-checks a `Pendiente` one with `GET /v2/refunds/{id}`.
-    - Once the recorded refunds cover the charge's full amount, `refundPayment` clears `charge_id`, so the session no longer counts as charged (decision 8). A partial refund keeps it. This is the path a failed completion's compensation takes for a captured charge.
+    - Once the `Completa` refunds cover the charge's full amount, `refundPayment` clears `charge_id`, so the session no longer counts as charged (decision 8). A `Pendiente` refund does not count until it is `Completa`, and a partial refund keeps `charge_id`. This is the path a failed completion's compensation takes for a captured charge.
     - Statuses are compared case-insensitively. The spec shows both `Completa` and `completa`.
     - Reason mapping, from the Medusa refund reason `code` (seeded in F3):
 
@@ -305,10 +307,10 @@
 12. **Cancel** (proposed).
     - Culqi cannot annul a captured charge; it must be refunded. Every MVP charge is captured.
     - `cancelPayment` without a `charge_id`: nothing to do.
-    - `cancelPayment` with a captured charge: full refund of the remaining amount with `solicitud_comprador`, recorded in `data.refunds`. It clears `charge_id`, so the session no longer counts as charged (decision 8).
-    - `cancelPayment` with an uncaptured charge: not used in the MVP. How to void one at Culqi: Not verified; F3 spike S8.
+    - `cancelPayment` with a captured charge: full refund of the remaining amount with `solicitud_comprador`, recorded in `data.refunds` like any refund (decision 11). It clears `charge_id` once that refund is `Completa`, so the session no longer counts as charged (decision 8).
+    - `cancelPayment` with a charge uncaptured at Culqi: never happens in the MVP, because every charge is sent with `capture: true`. How to void one at Culqi: Not verified; F3 spike S8.
     - Normal path: `cancelOrderWorkflow` refunds captured payments through `refundPayment`.
-    - `cancelPayment` covers the S1 fallback and the compensation of an uncaptured payment. A captured payment is compensated through `refundPayment` (decision 11). The customer is never left charged without an order.
+    - `cancelPayment` runs only when Medusa counts the payment as uncaptured: under the S1 fallback, before the capture subscriber runs. The charge is still captured at Culqi, so it refunds. A payment Medusa counts as captured is compensated through `refundPayment` (decision 11). The customer is never left charged without an order.
     - `deletePayment` never calls Culqi. A deleted session that had a charge is left to the job.
 
 13. **Methods** (proposed).
@@ -329,10 +331,10 @@
     | `declined` | `insufficient_funds`, `stolen_card`, `lost_card`, `fraudulent`, `contact_issuer`, `issuer_decline_operation`, `too_many_attempts_cvv`, `soft_block`, `culqi_card`, any unknown code | "No pudimos aprobar el pago con esta tarjeta. Prueba con otra tarjeta o comunícate con tu banco. No se hizo ningún cargo." |
     | `check_card` | `expired_card`, `invalid_cvv` (`incorrect_cvv` in the test cards), `invalid_card` | "Revisa los datos de tu tarjeta o prueba con otra. No se hizo ningún cargo." |
     | `authentication_failed` | 3DS failed or timed out | "No pudimos verificar el pago con tu banco. Inténtalo de nuevo o prueba con otra tarjeta. No se hizo ningún cargo." |
-    | `try_again` | `issuer_not_available`, `processing_error`, any 4xx error object that is not a card error | "Algo salió mal al procesar el pago. Espera un momento e inténtalo de nuevo. No se hizo ningún cargo." |
+    | `try_again` | `issuer_not_available`, `processing_error`, any 4xx error object that is not a card error, or a failed pre-charge lookup (decision 8) | "Algo salió mal al procesar el pago. Espera un momento e inténtalo de nuevo. No se hizo ningún cargo." |
     | `pending` | No answer or a 5xx, and the lookup could not confirm | Title "Estamos confirmando tu pago". Message: "No vuelvas a pagar: revisaremos tu pago y te escribiremos a tu correo." |
 
-    - "No se hizo ningún cargo" appears only when Culqi answered a card decline or a 4xx error object, or when 3DS authentication failed (`authentication_failed`). In the 3DS round trip (decision 7), Culqi's first answer asks for authentication and creates no charge, and a failed authentication never sends the second charge request. A 5xx never shows it.
+    - "No se hizo ningún cargo" appears only when Culqi answered a card decline or a 4xx error object, when the pre-charge lookup failed before any charge request (decision 8), or when 3DS authentication failed (`authentication_failed`). In the 3DS round trip (decision 7), Culqi's first answer asks for authentication and creates no charge, and a failed authentication never sends the second charge request. A 5xx never shows it.
     - The `declined` text replaces the F1 "Tu banco rechazó la tarjeta", because Culqi's own blocks (`soft_block`, `culqi_card`) are not bank declines.
 
 15. **Reconciliation job and the F1 ports** (proposed).
@@ -340,23 +342,28 @@
     - Each run:
       1. Lists the Culqi charges created since its watermark, page by page, and keeps those with `metadata.medusa_session_id`.
          - The watermark is the start of the last completed run minus 1 hour, and never more than 48 hours back. Each window overlaps the previous one by an hour, so a charge still inside its grace period, or listed late (spike S5), is seen again by later runs.
-         - A run makes at most 50 Culqi requests (proposed). When it reaches that budget, or Culqi answers `limit_api_error`, it stops at once without advancing the watermark, and the next run continues from the same point.
+         - The run walks its window oldest first and saves a cursor in its `culqi_job_run` row: the creation time and id of the last charge it finished.
+         - A run makes at most 50 Culqi requests (proposed). When it reaches that budget, or Culqi answers `limit_api_error`, it stops at once. The next run resumes from the saved cursor, not from the watermark, so a backlog larger than one budget still drains, a little each run.
+         - The watermark advances only when a run reaches the end of its window. A run stopped by the budget does not count as completed for the stall alert below, so a backlog that drains slowly still reaches the owner.
+         - If the cursor falls more than 48 hours back, the owner is alerted at once: older charges leave the scan.
+         - Whether Culqi's listing pages in a stable order that a creation-time cursor can resume is not documented in what was read; F3 spike S14 checks it.
          - The job shares the Culqi API quota with checkout's lookup, which stops charging on `limit_api_error` (decision 8). The budget keeps the job from starving checkout. Culqi's rate limits are not documented in what was read; F3 spike S14 measures them and sets the budget to a small share of the quota.
-      2. Resolves each successful charge to its session, cart and order.
-      3. Classifies it: `matched` (an order's payment holds this `charge_id`), `duplicate` (the cart's order was paid by another charge), `orphan` (no order, and the charge is older than 30 minutes) or `unresolved` (the session or cart cannot be found).
+      2. Resolves each successful charge to its session, cart and order. When the session is gone, it resolves the cart from the charge's `metadata.medusa_cart_id`.
+      3. Classifies it: `matched` (an order's payment holds this `charge_id`), `duplicate` (the cart's order was paid by another charge), `orphan` (no order, and the charge is older than 30 minutes) or `unresolved` (the cart cannot be found, or the session is gone and the job cannot rule out an earlier refund; step 4).
       4. Skips every charge that is already refunded, so nothing is refunded twice:
          - A charge with a `culqi_reconciliation` record is never refunded again; the unique `charge_id` keeps reruns idempotent.
-         - A failed completion's compensation refunds through `refundPayment` (decision 11), or `cancelPayment` (decision 12) for an uncaptured payment. Both record the refund in the session's `data.refunds`. A charge covered by it gets its record with that refund, no new refund call and no owner alert.
+         - A failed completion's compensation refunds through `refundPayment` (decision 11), or `cancelPayment` (decision 12) under the S1 fallback. Both record the refund in the session's `data.refunds`. A charge covered by it gets its record with that refund, no new refund call and no owner alert.
          - If the charge object shows refunds (F3 spike S12), the job checks it too, which also covers a refund made in the CulqiPanel.
-         - A deleted session takes its `data.refunds` with it. The job then cannot resolve the charge, so it is `unresolved` (step 3) and never refunded automatically. The owner closes that one record.
-      5. For the remaining `duplicate` and `orphan` charges, checks again that no order references the charge, then **writes the `culqi_reconciliation` record first**, with status `refund_pending` and no `refund_id`. The insert is unique per `charge_id`, and only the run whose insert created the record goes on; a run that finds the record already there skips the charge. Only then does it set `refund_attempted_at` and `refund_attempts` and refund the charge in full (`duplicado` for `duplicate`, `solicitud_comprador` for `orphan`) and store the `refund_id`. A crash between the two leaves the record. Step 5 never runs again for a charge that has a record; only step 7 decides whether that refund is retried. An `unresolved` charge is never refunded automatically.
+         - A deleted session takes its `data.refunds` with it, for example when the cart total changed after a payment ended `unknown`. If S12 holds, the job checks the charge's refunds at Culqi and treats the charge as `orphan` when it finds none, so the customer's money is returned without the owner. Without S12 it cannot rule out a compensation refund, so the charge is `unresolved` and the owner is alerted at once.
+      5. For the remaining `duplicate` and `orphan` charges, checks again that no order references the charge, then **writes the `culqi_reconciliation` record first**, with status `refund_pending` and no `refund_id`. The insert is unique per `charge_id`, and only the run whose insert created the record goes on; a run that finds the record already there skips the charge. Only then does it set `refund_attempted_at` and `refund_attempts` and refund the charge in full (`duplicado` for `duplicate`, `solicitud_comprador` for `orphan`) and store the `refund_id`. A crash after the insert and before the refund call leaves the record, with no `refund_attempted_at` when it happened before that field was set. Step 5 never runs again for a charge that has a record; only step 7 decides whether that refund is retried. An `unresolved` charge is never refunded automatically.
       6. Writes the record for every other charge that is not `matched`: `unresolved` ones and ones found already refunded. It alerts the owner, except for a charge it found already refunded.
       7. Re-checks pending refunds. `Rechazado` alerts the owner.
          - A `refund_pending` record without a `refund_id` means a run stopped mid-refund, or the refund call failed (a 5xx or a timeout). The owner is alerted the first time the job finds it.
          - A retry is safe only if a refund Culqi accepted always shows on the charge at once. Otherwise a refund accepted but not yet listed would be requested twice. Whether Culqi rejects a refund above the charge's remaining amount is not verified either.
          - So the job retries only when F3 spike S12 confirms that the charge object shows its refunds and shows a new one immediately.
          - The wait is measured from `refund_attempted_at`, set just before every refund call. A record left by a crash between the insert and the first call has no `refund_attempted_at`, so the wait counts from its `created_at`.
-         - A retry runs only when at least 30 minutes have passed since that time. It first checks the charge's refunds and stores the `refund_id` if it finds one. Only when it finds none does it update `refund_attempted_at`, add one to `refund_attempts` and call Culqi again. The 30-minute wait restarts after every attempt, including one that timed out.
+         - A retry runs only when at least 30 minutes have passed since that time. It first checks the charge's refunds and stores the `refund_id` if it finds one. Only when it finds none does it claim the retry and call Culqi again. The 30-minute wait restarts after every attempt, including one that timed out.
+         - **The claim is a conditional update.** It adds one to `refund_attempts` and sets `refund_attempted_at` only if `refund_attempts` still holds the value the run read. A run whose update changes no row lost the claim to another run and skips the record. Two overlapping runs therefore never both call Culqi for the same retry.
          - After three attempts, the job alerts the owner and stops retrying.
          - Without that confirmation the job never retries. The owner checks the CulqiPanel and closes the record.
     - **One run at a time.** The job holds a job-level lock (in Redis or the database; F3 picks the mechanism) for the whole run. A run that finds the lock taken, because the previous run outlasted the 15-minute interval, does nothing.
@@ -433,7 +440,10 @@
   - Reconciliation: a run killed right after renewing its lease causes at most two skipped runs and no alert; a later run proceeds. Three skipped runs in a row alert the owner.
   - Reconciliation: a refund call that fails with a 5xx or times out leaves a `refund_pending` record and alerts the owner. With S12 confirmed, a run at least 30 minutes after `refund_attempted_at` checks the charge's refunds and retries only when it finds none, at most three attempts in all. A retry that times out restarts the wait. Without S12, it never retries.
   - Reconciliation: two overlapping runs reach the same orphan charge; only the run whose record insert succeeds refunds it.
-  - Reconciliation: a run that reaches its request budget, or gets `limit_api_error`, stops without advancing the watermark, and the next run continues from it.
+  - Reconciliation: a run that reaches its request budget, or gets `limit_api_error`, stops without advancing the watermark. The next run resumes from the saved cursor, and a backlog larger than one budget drains over several runs.
+  - Reconciliation: two overlapping runs reach the same due retry; only the run whose conditional update succeeds calls Culqi.
+  - Reconciliation: a charge whose session was deleted is refunded as `orphan` when S12 shows no refund on it; without S12 it is `unresolved` and alerts the owner.
+  - Duplicates: a compensation refund still `Pendiente` keeps `charge_id`, and a retry on the same session ends `unknown` instead of adopting the charge.
   - Classifier: a 4xx error object that is not a card error sets `charge_status: "failed"`. A 5xx with an error body, and a 4xx without a parseable body, go to the lookup and end `unknown` when the lookup finds nothing.
   - Currency: the session stores `pen`; the charge request sends `PEN`.
   - Attempts: the eleventh completion of one cart within an hour answers 429 and makes no Culqi call.

@@ -20,6 +20,8 @@ stateDiagram-v2
     [*] --> en_importacion: order placed, with procurement items
     pagado --> preparando: fulfillment created
     en_importacion --> preparando: fulfillment exists and every item received
+    en_importacion --> preparando: last unreceived item canceled, fulfillment exists
+    en_importacion --> pagado: every procurement item canceled, no fulfillment
     preparando --> pagado: fulfillment canceled, no procurement items
     preparando --> en_importacion: fulfillment canceled, with procurement items
     preparando --> en_camino: fulfillment shipped
@@ -45,6 +47,8 @@ stateDiagram-v2
 | — | `en_importacion` | `completeCartWorkflow` creates the order; a subscriber on `order.placed` creates its procurement items | At least one line needs procurement (ADR 0007, later in this chain). Until the subscriber runs, the order shows `pagado`. F3 makes it retry and alerts the owner when it keeps failing |
 | `pagado` | `preparando` | The owner creates a fulfillment in the admin | — |
 | `en_importacion` | `preparando` | The last procurement item is received, or the fulfillment is created, whichever comes last | A fulfillment that is not canceled exists and every procurement item that is not canceled is received |
+| `en_importacion` | `preparando` | The owner cancels the last unreceived procurement item without canceling the order, for example when the supplier cannot deliver | A fulfillment that is not canceled exists and every remaining procurement item is received. The canceled line still needs the owner's follow-up: a partial refund or the order's cancellation (F3) |
+| `en_importacion` | `pagado` | The owner cancels every procurement item without canceling the order | No fulfillment that is not canceled exists. Same follow-up as above |
 | `preparando` | `pagado` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled, and the order has no procurement items that are not canceled |
 | `preparando` | `en_importacion` | The owner cancels the only fulfillment before shipment | No other fulfillment that is not canceled, and the order has procurement items that are not canceled, even if all were received (ADR 0003, rule 6). It returns to `preparando` when a new fulfillment is created |
 | `preparando` | `en_camino` | The owner creates the shipment (`shipped_at` set) | — |
