@@ -82,6 +82,7 @@ Not verified: whether a link between two Medusa commerce modules (customer ↔ p
 | `comprobante` | `cpe` | sunat-billing |
 | `nrus_cap_alert` | `nrusalert` | sunat-billing |
 | `culqi_reconciliation` | `culrec` | culqi |
+| `culqi_job_run` | `culrun` | culqi |
 | `complaint` | `cmpl` | complaints |
 | `complaint_answer` | `cmplans` | complaints |
 | `complaint_counter` | `cmplctr` | complaints |

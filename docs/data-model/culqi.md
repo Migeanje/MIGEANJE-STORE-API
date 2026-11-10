@@ -5,7 +5,7 @@ The culqi module stores the records of the Culqi reconciliation job: charges wit
 | Unit | Path | Data |
 |---|---|---|
 | Payment provider `culqi` (`pp_culqi_culqi`) | `src/modules/culqi-payment` | No models. It keeps what it needs in the payment session `data` (ADR 0005, decision 9), which Medusa owns and the storefront can read |
-| Module `culqi` | `src/modules/culqi` | `culqi_reconciliation` |
+| Module `culqi` | `src/modules/culqi` | `culqi_reconciliation`, `culqi_job_run` |
 | Culqi client | `src/lib/culqi` | None |
 
 ## Models
@@ -28,6 +28,8 @@ One successful Culqi charge the job could not match to an order's payment. One r
 | `kind` | `enum` | `duplicate`, `orphan`, `unresolved` | ADR 0005, decision 15, step 3. `matched` charges get no record. Labels (admin): "Cobro duplicado", "Cobro sin pedido", "Sin resolver" |
 | `status` | `enum` | see below | |
 | `refund_id` | `text` | nullable; check `^ref_`; set once; null for `unresolved` (check) | Culqi refund of the full amount |
+| `refund_attempted_at` | `dateTime` | nullable; null for `unresolved` (check) | Set just before every refund call. The retry wait counts from it, or from `created_at` while it is null (ADR 0005, decision 15, step 7) (proposed) |
+| `refund_attempts` | `number` | default 0; 0 to 3 (check) | Refund calls made for this charge. The job stops retrying at 3 and alerts the owner (proposed) |
 | `charge_created_at` | `dateTime` | | Culqi's creation time. The 30-minute grace period counts from it (proposed) |
 | `resolved_at` | `dateTime` | nullable | The owner closed the record |
 | `resolved_by` | `text` | nullable; set with `resolved_at` (check) | Admin user ID |
@@ -61,6 +63,23 @@ Culqi statuses are compared case-insensitively (ADR 0005, decision 11). "Open" i
 
 The record holds no personal data: no email, no card data, no Culqi decline codes.
 
+### `culqi_job_run` (ID prefix `culrun`) (proposed)
+
+One run of the reconciliation job. It gives the job its watermark and the owner's stall alerts (ADR 0005, decision 15).
+
+| Field | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `id` | primary key | |
+| `started_at` | `dateTime` | | When the run took the lease |
+| `finished_at` | `dateTime` | nullable | Null while running, or when the run was killed |
+| `window_start` | `dateTime` | | The watermark this run scanned from |
+| `stop_reason` | `enum` | nullable; `completed`, `budget`, `rate_limited`, `lease_lost`, `error`; set with `finished_at` (check) | Only `completed` advances the watermark |
+| `requests_made` | `number` | default 0; ≥ 0 (check) | Culqi requests in this run, against the per-run budget |
+
+- Watermark: the `started_at` of the latest `completed` run minus 1 hour, never more than 48 hours back.
+- Stall alert: no `completed` run in the last hour.
+- Runs older than 30 days are deleted; they hold no business data.
+
 ## Module links
 
 None (proposed). The record keeps plain IDs (`cart_id`, `session_id`, `order_id`):
@@ -74,10 +93,12 @@ The payment provider has no models and no links. Whether a module provider can o
 
 The port other code calls. Generated CRUD methods follow the service factory names ([list method](https://docs.medusajs.com/resources/service-factory-reference/methods/list)).
 
-- `recordCharge(input)`: creates the record with status `refund_pending` or `needs_review` by `kind`, or returns the existing one for that `charge_id`.
+- `recordCharge(input)`: creates the record with status `refund_pending` or `needs_review` by `kind`, or returns the existing one for that `charge_id`. It also returns whether this call created it. Only the caller that created the record calls the refund, so two overlapping runs never refund one charge twice (ADR 0005, decision 15, step 5).
+- `markRefundAttempt(id)`: sets `refund_attempted_at` to now and adds one to `refund_attempts`, just before a refund call.
 - `recordRefund(id, { refund_id, culqi_status })`: sets `refund_id` and maps the status: `Completa` → `refunded`, `Pendiente` → stays `refund_pending`, `Rechazado` → `refund_failed`.
 - `listPendingRefunds()`: `refund_pending` records with a `refund_id`, which the job re-checks with `GET /v2/refunds/{id}`.
-- `listStuck(olderThan)`: `refund_pending` records without `refund_id` after a run. The job alerts the owner. It retries the refund under the same record only when spike S12 confirms that the charge object shows new refunds at once, at least 30 minutes after the failed call, and at most three times (ADR 0005, decision 15, step 7). Without that confirmation it never refunds again (proposed).
+- `listStuck(olderThan)`: `refund_pending` records without `refund_id` after a run. The job alerts the owner. It retries the refund under the same record only when spike S12 confirms that the charge object shows new refunds at once, at least 30 minutes after `refund_attempted_at` (or `created_at`), and while `refund_attempts` is under 3 (ADR 0005, decision 15, step 7). Without that confirmation it never refunds again (proposed).
+- `startRun()`, `finishRun(id, { stop_reason, requests_made })`, `watermark()`, `lastCompletedRun()`: the `culqi_job_run` operations behind the job's watermark and stall alert.
 - `findOpenByCart(cart_id)`: the latest open record of the cart, or null. Backs F1 `ReconciliationLog.findByCart`.
 - `resolve(id, { note, actor_id })`: closes a `refund_failed` or `needs_review` record; refuses any other.
 - `listForAdmin(filters)`: by `status`, `kind` and `created_at`.
