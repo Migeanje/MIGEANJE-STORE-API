@@ -77,12 +77,12 @@ The port other code calls. Generated CRUD methods follow the service factory nam
 - `recordCharge(input)`: creates the record with status `refund_pending` or `needs_review` by `kind`, or returns the existing one for that `charge_id`.
 - `recordRefund(id, { refund_id, culqi_status })`: sets `refund_id` and maps the status: `Completa` → `refunded`, `Pendiente` → stays `refund_pending`, `Rechazado` → `refund_failed`.
 - `listPendingRefunds()`: `refund_pending` records with a `refund_id`, which the job re-checks with `GET /v2/refunds/{id}`.
-- `listStuck(olderThan)`: `refund_pending` records without `refund_id` after a run. The job alerts the owner. It retries the refund under the same record only when Culqi's charge object shows no refund (ADR 0005, decision 15, step 7; spike S12). Without S12 it never refunds again (proposed).
+- `listStuck(olderThan)`: `refund_pending` records without `refund_id` after a run. The job alerts the owner. It retries the refund under the same record only when spike S12 confirms that the charge object shows new refunds at once, at least 30 minutes after the failed call, and at most three times (ADR 0005, decision 15, step 7). Without that confirmation it never refunds again (proposed).
 - `findOpenByCart(cart_id)`: the latest open record of the cart, or null. Backs F1 `ReconciliationLog.findByCart`.
 - `resolve(id, { note, actor_id })`: closes a `refund_failed` or `needs_review` record; refuses any other.
 - `listForAdmin(filters)`: by `status`, `kind` and `created_at`.
 
-Per charge, the job records first and refunds second. A crash in between, or a refund call that fails, leaves a `refund_pending` record without `refund_id`, which `listStuck` reports. A charge is never refunded twice by the job: it retries only after Culqi shows the first call made no refund.
+Per charge, the job records first and refunds second. A crash in between, or a refund call that fails, leaves a `refund_pending` record without `refund_id`, which `listStuck` reports. A charge is never refunded twice by the job: it retries only when Culqi reliably shows that the first call made no refund.
 
 ### Routes that need this module (proposed; T8 fixes the names)
 
