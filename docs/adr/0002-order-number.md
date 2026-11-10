@@ -21,6 +21,8 @@
    - Storefront: the Medusa adapter formats the number from `display_id` and `created_at`. It keeps the F1 `normalizeOrderNumber` for user input.
 4. **Lookup checks both parts.** The guest tracking route parses the number into a year and a `display_id`. It finds the order by `display_id` and returns it only when the Lima year of `created_at` matches and the email matches. Any mismatch answers "not found", the same answer as a wrong email.
 5. **The number is never a credential.** Sequential numbers can be guessed. Guest tracking always requires the email, keeps the F1 throttle (10 failures per 15 minutes) and never reveals which of the two fields failed.
+   - The backend tracking route enforces the throttle too, not only the storefront. The storefront's in-process counter alone could be bypassed by calling Medusa directly.
+   - Failures are counted in Redis per client IP and per email. The client IP is trusted only on requests that carry the storefront server's credential, as ADR 0004 (decision 8) defines for sign-in. Any other caller is counted by its own address.
 
 ## Consequences
 
