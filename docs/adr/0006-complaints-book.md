@@ -126,7 +126,7 @@ Medusa and PostgreSQL facts:
      - Storefront server action: 5 filings per hour per client key (IP plus the `mg_client` cookie, the F1 attempt limiter). Only the storefront sees the consumer's IP.
      - Medusa middleware on the route: 30 filings per hour per source IP, for callers that skip the storefront. Counters live in Redis in production.
      - No global cap: other people's traffic never closes the book to a consumer. More than 10 filings in one hour alert the owner instead.
-     - Middleware implementation and which client IP Medusa sees behind a proxy: Not verified; F3 spike.
+     - The source IP is the client IP the storefront forwards with its server credential; any other caller is counted by its own address (contract map C5, decision D9). The middleware implementation and the address Medusa sees behind a proxy: Not verified; F3 spike.
    - Customer message for 429: "Recibimos varias Hojas de Reclamación desde tu conexión en poco tiempo. Espera unos minutos y vuelve a intentarlo."
 
 4. **Email copy through the Notification Module** (proposed).
