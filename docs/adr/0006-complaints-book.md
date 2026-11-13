@@ -146,7 +146,8 @@ Medusa and PostgreSQL facts:
    - Example: a sheet filed on Tuesday 2026-12-01 is due on Tuesday 2026-12-22. If 8 December is a holiday, the legal deadline is 2026-12-23 or later.
    - No holiday calendar to maintain. A wrong calendar entry could only make us late.
    - The due date is stored at filing and never moves. The art. 6-A suspension is never applied.
-   - This keeps F1's rule and closes R10's holiday item for complaints. Delivery estimates at checkout are a separate question.
+   - This keeps F1's rule and closes R10's holiday item for complaints.
+   - Two rules, kept apart (decision D11, 2026-11-13). Delivery estimates skip holidays with the ubigeo-shipping `holiday` table, so the store promises real dates. The complaints module computes `response_due_date` with its own weekday-only count and never calls ubigeo-shipping's `addBusinessDays`. A wrong calendar entry can only shift a delivery estimate, never the legal deadline.
 
 6. **Owner workflow in the admin** (proposed).
    - UI routes: `src/admin/routes/complaints/page.tsx`, with the sidebar item "Libro de Reclamaciones", and `src/admin/routes/complaints/[id]/page.tsx`.
@@ -221,7 +222,7 @@ Medusa and PostgreSQL facts:
 - **A PostgreSQL sequence per year.** Rejected: `nextval` is not reclaimed on rollback, so a failed filing leaves a gap.
 - **`MAX(sequence) + 1` without a lock.** Rejected: two concurrent filings read the same maximum, and the unique index turns one of them into an error.
 - **The Locking Module around the insert.** Rejected: the default provider is in-memory and single-instance, and the counter row already serializes filings inside the transaction.
-- **A holiday calendar for the exact legal deadline.** Rejected: it needs yearly upkeep, including días no laborables decreed at short notice. It gains at most a few days, and a wrong entry makes us late.
+- **A holiday calendar for the exact legal deadline.** Rejected: it needs yearly upkeep, including días no laborables decreed at short notice. It gains at most a few days, and a wrong entry makes us late. The rejection covers this deadline only: delivery estimates do keep a calendar (D11).
 - **Using the art. 6-A suspension.** Rejected: it moves the deadline and needs the consumer's reply tracked. The owner answers within 15 business days anyway.
 - **Sending the copy only from a subscriber on `complaint.filed`.** Rejected: the constancia could not say whether the copy went out, as F1 does. The retry job already covers late copies.
 - **Calling Resend from the complaints module, bypassing the Notification Module.** Rejected: one email transport for the whole store, and the notification record is proof of what was sent. Cost: copies of the sheets in the notification table.

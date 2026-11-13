@@ -299,6 +299,8 @@ The specs and editorial editors were pending since F1 (Engram #107); editorial s
 
 ### Conflicts and gaps between documents
 
+All six were decided by the owner on 2026-11-13 (decisions D5–D10 in the F2 tracking document).
+
 | # | Documents | Issue | Proposed |
 |---|---|---|---|
 | C1 | F1 checkout draft vs [sunat-billing](data-model/sunat-billing.md) | F1 collects the buyer's DNI or CE at the contact step. The data model stores it only in `receipt_request`, written at the receipt step. Between both steps the document has no home, and `get(cartId)` cannot rebuild `contact.customer.document` | **Decided 2026-11-13 (D5):** the contact step writes the receipt request with the document and name, and `receipt_request.type` stays null until the receipt step. A factura replaces the document with the RUC. The sunat-billing data model is updated. Rejected: moving the document field to the receipt step, because it changes the F1 checkout |

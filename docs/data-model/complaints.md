@@ -24,7 +24,7 @@ Numbering and filing:
 | `submission_hash` | `text` | check `^[0-9a-f]{64}$` | SHA-256 of the validated body. Same ID, different hash: 409 |
 | `access_token` | `text` | UUID | Opens the constancia for one hour. Stored as issued (ADR 0006, decision 3) |
 | `filed_at` | `dateTime` | | Read from the clock after the counter upsert |
-| `response_due_date` | `text` | check `^\d{4}-\d{2}-\d{2}$` | Lima date: filing date plus 15 business days, Monday to Friday (ADR 0006, decision 5). Never moves |
+| `response_due_date` | `text` | check `^\d{4}-\d{2}-\d{2}$` | Lima date: filing date plus 15 business days, Monday to Friday, holidays counted as business days (ADR 0006, decision 5). Computed by this module, never with ubigeo-shipping's `addBusinessDays` (D11). Never moves |
 | `kind` | `enum` | `reclamo`, `queja` | F1 `claim.kind` |
 | `response_channel` | `enum` | `email`, `carta` | F1 `responseChannel` |
 | `declaration_accepted` | `boolean` | check `= true` | F1 `declarationAccepted` |

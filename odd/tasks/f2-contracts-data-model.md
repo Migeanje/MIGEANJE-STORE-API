@@ -138,13 +138,13 @@ Findings of the seventh round and earlier non-blocking items, deferred by the ow
 - D8 (2026-11-13, contract map C4): accounts keep no DNI or CE. The adapter reads `document` as null, checkout takes it from the cart's receipt request (D5), and F4 drops the field. Rejected: a custom model linked to the customer for checkout prefill. Knock-on fix from D6: `emailVerifiedAt` can no longer be the customer's `created_at`.
 - D9 (2026-11-13, contract map C5): per-IP limits in Medusa use the client IP forwarded by the storefront server, trusted only with its secret credential; any other caller is counted by its own address. It ships in F3 with the sign-in throttle and before Culqi live keys, as ADRs 0002, 0004 and 0005 already state. Rejected: limits only at the storefront or the edge.
 - D10 (2026-11-13, contract map C6): two simultaneous favorite adds may reach 101; accepted. Rejected: a lock per customer.
+- D11 (2026-11-13, holidays): two rules kept apart. The complaints deadline counts holidays as business days with its own weekday-only count and never calls ubigeo-shipping's `addBusinessDays`. Delivery estimates skip holidays with the `holiday` table, updated once a year from the official calendar. Rejected: no holiday calendar anywhere, because delivery estimates would promise dates that miss around holidays.
+
+## Delivery
+
+- 2026-11-13: the owner landed all of F2 at once. Owner, verbatim: "quiero lanzar todo dentor de main directo que hago?". PR #1 (`docs/f2-contract-map` → `main`) was merged with a merge commit (`291de4c`); `main` equals that branch. The stacked plan of ten PRs was dropped.
+- The decisions D5–D11 live on branch `docs/f2-open-items`, one commit per decision, for one more PR to `main`.
 
 ## Next step
 
-Open before T10, as of 2026-11-10:
-
-- Owner decisions still open: contract map conflicts C1–C6, and the holiday inconsistency. ADR 0006 counts holidays as business days and rejects keeping a holiday calendar, while the ubigeo-shipping data model keeps a `holiday` table for delivery estimates and its `addBusinessDays` skips holidays. The complaints deadline must never use that helper.
-- Owner review of every proposed point.
-- The 10 pull requests are not open yet: `origin` has no pull request refs. The owner opens them from the compare links.
-
-Then T10. The slices are stacked PRs to `main`, opened and merged in this order: `docs/f2-money` → `docs/f2-orders` → `docs/f2-auth` → `docs/f2-payments` → `docs/f2-complaints` → `docs/f2-catalog-rules` → `docs/f2-data-model-catalog` → `docs/f2-data-model-operations` → `docs/f2-seed-plan` → `docs/f2-contract-map`. After each squash merge, `main` is merged into the next branch so its diff shows only its own slice. Size: the two data model slices exceed 400 lines (about 480 and 760). Each module page is cohesive and splitting further would separate links from their models, so they need a `size:exception` from the owner. The other slices are under 400.
+All contract map conflicts (C1–C6) and the holiday inconsistency are decided (D5–D11). The owner merges `docs/f2-open-items`. Then T10: the F2 closing summary in Engram, in the format of #107. ADR points marked "(proposed)" keep that marker; F3 confirms them through its spikes and tests.
