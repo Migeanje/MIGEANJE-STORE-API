@@ -134,6 +134,7 @@ Findings of the seventh round and earlier non-blocking items, deferred by the ow
 - D4 (2026-11-04, ADR 0004): Medusa cookie session. The Next.js server logs in, opens the session with `POST /auth/session` and keeps the session id in its own httpOnly cookie. Logout destroys the session in Medusa. TTL 7 days. Redis in production. Rejected: JWT in a cookie, because logout cannot revoke it.
 - D5 (2026-11-13, contract map C1): the checkout DNI or CE is stored from the contact step. The contact step writes the receipt request with the document and name, and `type` stays null until the receipt step; a factura replaces the document with the RUC. Rejected: moving the document field to the receipt step, because it changes the F1 checkout.
 - D6 (2026-11-13, contract map C2): registration creates the Medusa customer with the first and last name, using the registration token, so the F1 form stays. F3 spike: whether Medusa allows it while verification is pending; fallback, the first sign-in asks the names. Rejected as the default: asking the names at the first sign-in.
+- D7 (2026-11-13, contract map C3): the "pago en confirmación" notice shows no reference; F4 drops F1 `PendingPayment.reference`. Rejected: showing the Culqi `charge_id`.
 
 ## Next step
 
