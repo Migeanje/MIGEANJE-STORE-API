@@ -132,6 +132,7 @@ Findings of the seventh round and earlier non-blocking items, deferred by the ow
 - D3 (2026-11-04, ADR 0003): `cancelado` beats `reembolsado`. A canceled order shows `cancelado` with its refund as a detail line; `reembolsado` only for a full refund of an order that was not canceled (normally after shipment; a full refund without cancellation earlier shows it too). Partial refunds never change the status. Rejected: `reembolsado` first, because every paid order that is canceled is refunded, so `cancelado` would almost never show.
 
 - D4 (2026-11-04, ADR 0004): Medusa cookie session. The Next.js server logs in, opens the session with `POST /auth/session` and keeps the session id in its own httpOnly cookie. Logout destroys the session in Medusa. TTL 7 days. Redis in production. Rejected: JWT in a cookie, because logout cannot revoke it.
+- D5 (2026-11-13, contract map C1): the checkout DNI or CE is stored from the contact step. The contact step writes the receipt request with the document and name, and `type` stays null until the receipt step; a factura replaces the document with the RUC. Rejected: moving the document field to the receipt step, because it changes the F1 checkout.
 
 ## Next step
 
