@@ -137,6 +137,7 @@ Findings of the seventh round and earlier non-blocking items, deferred by the ow
 - D7 (2026-11-13, contract map C3): the "pago en confirmación" notice shows no reference; F4 drops F1 `PendingPayment.reference`. Rejected: showing the Culqi `charge_id`.
 - D8 (2026-11-13, contract map C4): accounts keep no DNI or CE. The adapter reads `document` as null, checkout takes it from the cart's receipt request (D5), and F4 drops the field. Rejected: a custom model linked to the customer for checkout prefill. Knock-on fix from D6: `emailVerifiedAt` can no longer be the customer's `created_at`.
 - D9 (2026-11-13, contract map C5): per-IP limits in Medusa use the client IP forwarded by the storefront server, trusted only with its secret credential; any other caller is counted by its own address. It ships in F3 with the sign-in throttle and before Culqi live keys, as ADRs 0002, 0004 and 0005 already state. Rejected: limits only at the storefront or the edge.
+- D10 (2026-11-13, contract map C6): two simultaneous favorite adds may reach 101; accepted. Rejected: a lock per customer.
 
 ## Next step
 
