@@ -44,7 +44,7 @@ No module service. Three workflows in application code, behind custom routes und
 - `removeFavoriteWorkflow({ customer_id, product_id })`: `dismissRemoteLinkStep` (same page). Not a favorite: success, as F1 `removeFavorite`.
 - `listFavorites(customer_id)`: `query.graph` on the link's `entryPoint` ([Add columns to a link](https://docs.medusajs.com/learn/fundamentals/module-links/custom-columns)), filtered by `customer_id`, with `product.*`, newest `favorited_at` first. Products that are no longer published are left out (proposed).
 
-Two adds at once with 99 favorites can reach 101 (proposed: accepted). Alternative: a lock per customer, which needs a multi-instance Locking Module provider in production ([Locking Module](https://docs.medusajs.com/resources/infrastructure-modules/locking)).
+Two adds at once with 99 favorites can reach 101 (accepted by the owner, decision D10, 2026-11-13; contract map C6). Rejected: a lock per customer, which needs a multi-instance Locking Module provider in production ([Locking Module](https://docs.medusajs.com/resources/infrastructure-modules/locking)).
 
 ### Routes (proposed; T8 fixes the names)
 

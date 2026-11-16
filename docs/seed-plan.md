@@ -238,7 +238,7 @@ Development and staging only. The account is public by design: anyone who knows 
 | `firstName` "Lucía", `lastName` "Demo" | `first_name`, `last_name` |
 | `phone` "900000000" | `phone` |
 | `emailVerifiedAt` | Verified, as [ADR 0004](adr/0004-customer-auth.md) requires. How a script marks an identity verified is not documented. Not verified; F3 spike. Fallback: verify once through the development mailbox |
-| `document`: DNI 00000000 | Not seeded. Medusa customers have no document field, and no data model page places one (open items) |
+| `document`: DNI 00000000 | Not seeded. Accounts keep no document (contract map C4, decision D8) |
 | `id`, `createdAt` | Not ported. Medusa assigns them |
 
 ### Addresses
@@ -378,6 +378,6 @@ Steps 4 and 5 need the F3 cart hooks ([ADR 0007](adr/0007-availability-mapping.m
 
 ### Gaps in other F2 documents
 
-- The account's identity document (DNI or CE) has no home: Medusa customers have no field for it, and no data model page places it. F1 uses it to prefill checkout.
+- The account's identity document (DNI or CE): resolved by contract map C4 (decision D8, 2026-11-13). Accounts keep no document; checkout takes it from the cart's receipt request, and F4 drops the field. F1 never used it to prefill checkout.
 - F1's "featured" sort has no field in Medusa or in the data model. The contract map (T8) decides.
 - F1 `model` (manufacturer part number) has no field in the data model. This plan proposes `subtitle`.

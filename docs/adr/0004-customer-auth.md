@@ -27,7 +27,8 @@
 4. **Redis in production** (approved, D4). `redisUrl` is required in production so sessions survive restarts and are shared between instances. Development may keep in-memory sessions.
 5. **Email verification is required to sign in** (proposed). `http.authVerificationsPerActor` is on for `customer` with `emailpass` and `entity_type: "email"`.
    - Registration sends the verification email (subscriber on `auth.verification_requested`, sent through Resend).
-   - The first login after verification creates the customer (`POST /store/customers`), then opens the session.
+   - Registration creates the customer with the first and last name, using the registration token (`POST /store/customers`), so the F1 registration form stays as it is (decision D6, 2026-11-13; contract map C2). The first login after verification opens the session.
+   - Whether Medusa accepts `POST /store/customers` with the registration token while verification is pending is not verified; F3 spike. If it does not, the first login after verification asks the names and creates the customer.
    - A signed-in customer always has a verified email. The F1 `email_unverified` state disappears from the Medusa adapter.
    - Guest checkout does not change: guests never need an account.
 6. **Guest orders in the account** (proposed; depends on point 5). Because the email is verified, the account lists the orders placed with that email as a guest as well as the orders placed while signed in, as F1 intended. The contract map defines the route.

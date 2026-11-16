@@ -96,7 +96,7 @@ The port other code calls. Generated CRUD methods follow the service factory nam
 - `zoneOf(distritoCode)`: the F1 rule, kept in code: provincia `1501` → `lima_metro`; departamento `07` → `callao`; otherwise `rest_of_peru`.
 - `subdivisionOf(distritoCode)`: the address `province` value: `pe-lma` for provincia `1501`, else the departamento's `iso_3166_2`.
 - `transitFor(shippingOptionId)`: zone and transit days, through the link.
-- `addBusinessDays(date, days)`: skips Saturdays, Sundays and `holiday` dates. Dates are Lima calendar dates (`YYYY-MM-DD`); timestamps stay UTC (Engram #18).
+- `addBusinessDays(date, days)`: skips Saturdays, Sundays and `holiday` dates. Dates are Lima calendar dates (`YYYY-MM-DD`); timestamps stay UTC (Engram #18). For delivery estimates only: the complaints deadline never calls it, because it counts holidays as business days (ADR 0006, decision 5; decision D11).
 - `estimateDelivery({ placedAt, transit, leadTimeDays })`: delivery days (transit plus lead time) and the `from` / `to` dates (F1 `quoteShipping` plus `deliveryWindow`).
 
 ### How checkout uses it (proposed)
@@ -169,6 +169,6 @@ Proposed custom routes: `GET /store/ubigeo` (whole tree, cacheable), `GET /store
 - Proposed: Medusa flat options with province geo zones. Alternatives: one option with `price_type` `calculated` and a custom fulfillment provider. Its `canCalculate(data)` and `calculatePrice(optionData, data, context)` get the cart's `shipping_address` and `items` and return `calculated_amount` and `is_calculated_price_tax_inclusive` ([Fulfillment provider](https://docs.medusajs.com/resources/references/fulfillment/provider)). Needed only when a rate depends on the distrito. Cost: the rates would live in the module as `bigNumber` plus `currency_code`, and the provider runs inside the Fulfillment Module. A module cannot resolve other modules' services ([Module isolation](https://docs.medusajs.com/learn/fundamentals/modules/isolation)); whether a provider can is not documented. F3 spike if chosen.
 - Proposed: `postal_code` carries the distrito ubigeo. Alternatives: `metadata` (no business data in metadata, Engram #18), or a link on the address (cart addresses are copied into the order, so a link would not follow). F1 never asks for Peru's 5-digit postal code.
 - Proposed: the tree lives in the database. Alternatives: a JSON file bundled with the module; no seed, but the admin and Query cannot read it.
-- Proposed: the `holiday` table. Alternatives: no holidays (F1 behavior, estimates a day or two early around them) or a list in code.
+- Decided 2026-11-13 (D11): the `holiday` table, for delivery estimates only, updated once a year from the official calendar. Rejected: no holidays (F1 behavior, estimates a day or two early around them) and a list in code.
 - F3 spike: which fulfillment provider the flat options use (the starter seed's default provider). Not verified.
 - R10: rates and transit times are DRAFT, as in F1. The owner confirms them before launch.

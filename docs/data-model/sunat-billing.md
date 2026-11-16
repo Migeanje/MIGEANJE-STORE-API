@@ -24,13 +24,19 @@ The receipt the customer chose at checkout. One per cart, through a module link.
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `id` | primary key | |
-| `type` | `enum` | `boleta`, `factura`; `factura` only while the `facturas` flag is on (service rule) | |
-| `document_type` | `enum` | `dni`, `ce`, `ruc`; `ruc` if and only if `type` is `factura` (check) | |
+| `type` | `enum` | nullable; `boleta`, `factura`; `factura` only while the `facturas` flag is on (service rule) | Null while only the contact step has run (D5) |
+| `document_type` | `enum` | `dni`, `ce`, `ruc`; `ruc` if and only if `type` is `factura`; while `type` is null, `dni` or `ce` only (check) | |
 | `document_number` | `text` | `dni`: `^\d{8}$`; `ce`: `^[A-Z0-9]{9,12}$`; `ruc`: `^\d{11}$` starting with 10 or 20 (checks), plus the check digit (service rule) | F1 patterns |
 | `customer_name` | `text` | not blank; at most 150 characters | Boleta: first and last name. Factura: razón social |
 | `fiscal_address` | `text` | nullable; at most 200 characters; set if and only if `type` is `factura` (check) | |
 
 Posting the receipt step again updates the cart's request in place.
+
+The request is created at the contact step, not the receipt step (decision D5, 2026-11-13; contract map C1):
+
+- The contact step writes the buyer's DNI or CE and name, with `type` null. The document survives a reload, and the checkout draft can rebuild the contact step from it.
+- The receipt step sets `type`. A boleta keeps the contact document. A factura replaces it with the RUC and razón social, and adds `fiscal_address`.
+- The cart cannot be completed while `type` is null; the `validate` hook on completion checks it.
 
 ### `comprobante` (ID prefix `cpe`)
 
