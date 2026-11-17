@@ -16,9 +16,9 @@ Double-charge protection is not negotiable: it is MVP without a vote.
 | Outcome | Count | Mechanisms |
 |---|---|---|
 | MVP as designed | 27 | M1–M5, M7–M9, M11–M16, M19, M24, M26–M28, M30, M31, M34–M37, M39, M41 |
-| MVP only if spike S1 fails | 1 | M17 |
-| MVP with a deferred part | 9 | M10, M18, M23, M25, M32, M33, M38, M40, M42 |
-| Deferred | 5 | M6, M20, M21, M22, M29 |
+| MVP only if ADR 0005 spike S1 fails | 1 | M17 |
+| MVP with a deferred part | 11 | M10, M18, M20, M21, M23, M25, M32, M33, M38, M40, M42 |
+| Deferred | 3 | M6, M22, M29 |
 
 ### ADR 0004 — Customer auth
 
@@ -45,11 +45,11 @@ Double-charge protection is not negotiable: it is MVP without a vote.
 | M14 | `validate` hook on cart completion: session amount, currency and email equal the cart's | MVP | Money correctness does not depend on volume; one hook and its tests |
 | M15 | Quote fingerprint re-check before updating the payment session (storefront) | MVP | The FNV-1a fingerprint already exists in F1; F4 only wires it to the real cart |
 | M16 | 3DS round trip: `REVIEW` → `requires_more` → Culqi3DS in the browser → second completion | MVP | Without it, every card whose bank requires authentication fails; that is conversion, not volume |
-| M17 | Capture subscriber on `order.placed` | MVP, only if spike S1 fails | Without it, orders stay authorized but not captured and ADR 0003's `pagado` breaks; manual capture per order is error-prone |
+| M17 | Capture subscriber on `order.placed` | MVP, only if [ADR 0005](0005-culqi-payments.md) spike S1 fails (Medusa does not record a capture when `authorizePayment` returns `captured`) | Without it, orders stay authorized but not captured and ADR 0003's `pagado` breaks; manual capture per order is error-prone |
 | M18 | Culqi webhook handler | MVP: log only. Fetch, dedupe and rate limit: deferred | [See below](#m18--culqi-webhook-handler-deferred-part) |
 | M19 | Refund and cancel through the provider, refunds recorded in `data.refunds`, refund reasons | MVP | Admin refunds and Medusa's compensation of a failed completion both run through it; M20's manual refunds assume it |
-| M20 | Charge reconciliation job | Deferred | [See below](#m20--charge-reconciliation-job) |
-| M21 | Refund re-check and automatic retry (job step 7) | Deferred | [See below](#m21--refund-re-check-and-automatic-retry) |
+| M20 | Charge reconciliation job | MVP: a daily report job that refunds nothing. The automated 15-minute job: deferred | [See below](#m20--charge-reconciliation-job) |
+| M21 | Refund re-check and automatic retry (job step 7) | MVP: refunds that are not `Completa` listed in the daily report. Automatic re-check and retry: deferred | [See below](#m21--refund-re-check-and-automatic-retry) |
 | M22 | `findByCart` route (`GET /store/carts/:id/payment-reconciliation`) | Deferred | [See below](#m22--findbycart-route) |
 | M23 | Yape guard: `yapeEnabled` and `NEXT_PUBLIC_CULQI_YAPE_ENABLED` false, `ype_` tokens refused | MVP: the guard. Enabling Yape: deferred | The owner decides to offer Yape (the same moment fires M18) |
 
@@ -130,7 +130,7 @@ Double-charge protection is not negotiable: it is MVP without a vote.
 - **Deferred.** The storefront layer (5 per hour per client key). It needs its own counter in Next.js, and a bot defeats it by rotating the cookie.
 - **Cost accepted.** One abusive person without a bot can file up to 30 sheets per hour instead of 5. Every sheet is immutable for 2 years (M34), so spam cannot be deleted.
 - **Trigger**, whichever comes first:
-  - more than 10 filings in one hour;
+  - more than 10 filings in one hour, seen as more than 10 per-sheet alerts (M32) within an hour, since the flood alert is deferred;
   - any spam sheet.
 
 ### M29 — Retry job for complaint copies and answers
