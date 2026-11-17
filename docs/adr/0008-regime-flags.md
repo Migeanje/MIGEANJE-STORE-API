@@ -1,6 +1,7 @@
 # ADR 0008 — Regime flags: one typed regime setting, from Nuevo RUS to regime B
 
 - Status: Proposed — pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #30 (block 11), #28, #118 (R9), #121; [ADR 0001](0001-money-representation.md), [ADR 0007](0007-availability-mapping.md); [procurement item state machine](../state-machines/procurement-item.md)

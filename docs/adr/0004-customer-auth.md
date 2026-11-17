@@ -1,6 +1,7 @@
 # ADR 0004 — Customer auth: Medusa owns identity, the storefront holds a Medusa session
 
 - Status: Accepted for points 1–4, except the `rolling: false` sub-point of point 3. Every point marked "(proposed)" is pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #107 (section 3, account), #118 (R3), #121
