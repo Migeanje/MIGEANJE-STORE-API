@@ -2,7 +2,7 @@
 
 - Engram mirror: project `migeanje-store`, topic `odd/f2-contracts-data-model/tasks`
 - Inputs: Engram #30 (master summary), #107 (F1 closing summary), #118 (approved resolutions R1–R10), #121 (verified Medusa/Culqi/legal facts), #18 (data decisions), #21 (way of working), #28 (supplier types)
-- Status: in progress
+- Status: closed on 2026-11-16 (Engram #548)
 
 ## Objective
 
@@ -46,7 +46,7 @@ Route legend: inline = parent writes; delegated = one bounded writer (2+ non-tri
 - [x] T7 — Data model of each custom module and its module links. Over 400 lines, so two slices. Route: delegated (two writers; the first ran in parallel with T4–T6). Part 1 `docs/f2-data-model-catalog`: `docs/data-model/README.md`, specs, editorial, ubigeo-shipping; ADR 0007 amended so brands are product collections and the Apple line is the `apple` collection. Part 2 `docs/f2-data-model-operations`: procurement, sunat-billing, culqi, complaints, customer favorites. Evidence: commits `cb852be` (part 1) and `docs: add data model of procurement, sunat-billing, culqi, complaints and favorites` (part 2); checks: writers' readback, link check and name match against ADRs 0005–0008, parent spot check (sections, attribution scan). Findings for the owner: shipping fits Medusa province geo zones (`pe-lma`, `pe-cal`) with flat options, no calculated provider; `query.graph` can filter by linked fields since v2.18.0 (Engram #481 corrects #121).
 - [x] T8 — Slice `docs/f2-contract-map`: storefront port → Medusa endpoint (standard or custom route). Route: delegated (parallel writer with T9). Evidence: commit `docs: add the storefront contract map` on `docs/f2-contract-map`; checks: 39 port methods found in the storefront code, 39 mapped; links and anchors resolve; parent spot check (sections, attribution scan). Status: proposed, pending owner review. Conflicts it found (C1–C6), most important C5: the storefront calls Medusa only from its server, so every per-IP throttle inside Medusa (complaints, "Avísame", tracking) sees one client.
 - [x] T9 — Slice `docs/f2-seed-plan`: seed plan from the 19 fixtures and 9 categories. Route: delegated (parallel writer with T8). Evidence: commit `docs: add the seed plan` on `docs/f2-seed-plan`; checks: 9 categories and 19 products in the tables, matching the fixtures (56 variants: 24 in stock, 7 backorder, 25 Apple); links resolve; parent spot check (sections, attribution scan). Status: proposed, pending owner review. Gaps it found: no home for the account's DNI/CE, no field for F1's "featured" order or `model`; demo orders are not seeded.
-- [ ] T10 — Close: F2 closing summary in Engram (same format as #107).
+- [x] T10 — Close: F2 closing summary in Engram (same format as #107). Evidence: Engram #548 (`phase/f2-closing-summary`), written after PR #2 merged (`72d4da5`).
 
 ## Acceptance criteria
 
@@ -147,4 +147,6 @@ Findings of the seventh round and earlier non-blocking items, deferred by the ow
 
 ## Next step
 
-All contract map conflicts (C1–C6) and the holiday inconsistency are decided (D5–D11). The owner merges `docs/f2-open-items`. Then T10: the F2 closing summary in Engram, in the format of #107. ADR points marked "(proposed)" keep that marker; F3 confirms them through its spikes and tests.
+F2 is closed. All contract map conflicts (C1–C6) and the holiday inconsistency are decided (D5–D11), and PR #2 brought them to `main` (`72d4da5`). The closing summary is Engram #548.
+
+F3 starts from #548 and the "Pending for F3" section above. ADR points marked "(proposed)" keep that marker until F3 confirms them through its spikes and tests.
