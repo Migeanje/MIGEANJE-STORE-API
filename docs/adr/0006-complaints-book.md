@@ -1,6 +1,7 @@
 # ADR 0006 — Complaints book: a custom module with a gapless yearly correlative
 
 - Status: Proposed — pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #107 (section 3, complaints), #118 (R3, R10), #121, #30; ADR 0001; ADR 0002; ADR 0003; [complaint state machine](../state-machines/complaint.md)
