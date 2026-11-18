@@ -40,7 +40,7 @@ The package manager is pnpm (`packageManager` in `package.json`). Never create a
 | `pnpm medusa db:generate <module>` | Migration for a changed custom module model |
 | `pnpm medusa db:migrate` | Run pending migrations |
 
-Run one test: `pnpm test:unit -- <path>` or `pnpm test:unit -- -t "<name>"`.
+Run one test: `pnpm test:unit <path>` or `pnpm test:unit -t "<name>"`. Do not add `--`: pnpm passes it on to Jest, which then reads `-t` and the name as file path patterns, so the wrong tests run (or none, and the suite still passes).
 
 Integration tests need PostgreSQL running; `.env.test` holds its credentials. Local setup, including starting Redis inside WSL after a Windows restart: `docs/dev-setup.md`.
 
@@ -56,6 +56,7 @@ Import from `@medusajs/framework/*` subpaths (`/utils`, `/types`, `/http`, `/wor
 ## Code conventions
 
 - **Lint must pass both tools.** Never disable a `@medusajs/*` ESLint rule to make lint pass: those rules encode framework requirements (route, workflow, module and link shapes). Fix the code.
+- **Treat Medusa lint warnings as defects.** `medusa lint` fails only on errors; its warnings (for example `use-medusa-error-not-generic-error`, `prices-in-major-units`) still print and must be fixed before a change is done.
 - **Style.** Enforced by Biome: no semicolons, double quotes, 2-space indent. Files in kebab-case; types and classes in PascalCase; functions and variables in camelCase; database columns in snake_case.
 - **Routing is file-based.** Never register routes by hand.
 - **Business logic lives in workflows.** Routes resolve and run a workflow.
