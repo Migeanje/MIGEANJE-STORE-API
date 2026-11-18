@@ -1,0 +1,19 @@
+# pnpm settings for this single-package repository (pnpm 12 no longer reads
+# the "pnpm" field of package.json).
+
+# Run package.json scripts in pnpm's cross-platform shell, so POSIX-style
+# scripts such as `TEST_TYPE=unit jest` also work on Windows.
+shellEmulator: true
+
+# Install scripts, decided per package (pnpm 12 fails the install on any
+# script left undecided).
+allowBuilds:
+  # Medusa's anonymous usage telemetry setup.
+  "@medusajs/telemetry": true
+  # Verify or fetch the platform binary.
+  "@swc/core": true
+  esbuild: true
+  # Prebuilt native accelerator for msgpackr; falls back to JavaScript.
+  msgpackr-extract: true
+  # Only prints notices; not needed.
+  protobufjs: false

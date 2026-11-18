@@ -1,6 +1,7 @@
 # ADR 0008 — Regime flags: one typed regime setting, from Nuevo RUS to regime B
 
 - Status: Proposed — pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #30 (block 11), #28, #118 (R9), #121; [ADR 0001](0001-money-representation.md), [ADR 0007](0007-availability-mapping.md); [procurement item state machine](../state-machines/procurement-item.md)
@@ -46,7 +47,7 @@
 
 2. **Medusa tax setup** (proposed).
    - Prices are tax-inclusive in both regimes, through a price preference for `pen`. Shelf prices stay the same at the switch. Under regime B, Medusa extracts the IGV from the price, so payable totals stay exact in céntimos (ADR 0001).
-   - Under Nuevo RUS, the Peru tax region has no default rate. The expected result is no tax lines and totals equal to prices. Not verified; F3 spike. If a region without a rate does not compute zero, F3 compares a 0% rate (not documented) with turning "Automatic Taxes" off.
+   - Under Nuevo RUS, the Peru tax region has no default rate. The result is no tax lines and totals equal to prices. Verified in F3a (`integration-tests/http/seed-setup.spec.ts`, Medusa 2.22.7): a S/ 249.90 tax-inclusive item gives a cart total of S/ 249.90 with no tax lines. The same cart with the regime B rate keeps the S/ 249.90 total and extracts S/ 38.12 of IGV, so tax calculation does run in that setup.
    - Under regime B, the default rate is 18%, named "IGV". Whether comprobantes must show the IPM separately: Not verified; the accountant confirms.
 3. **Nuevo RUS cap tracking.**
    - The admin gets a cap widget and a Telegram alert at 80% (approved, #30).
