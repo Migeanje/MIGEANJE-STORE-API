@@ -128,7 +128,13 @@ pnpm medusa db:setup --db migeanje_store
 pnpm medusa user -e <your-email> -p <admin-password>
 ```
 
-`db:setup` creates the database, runs the migrations and syncs module links. Then `pnpm dev` serves the API on `http://localhost:9000` and the admin on `http://localhost:9000/app`.
+`db:setup` creates the database, runs the migrations and syncs module links. Then seed it; the seed is idempotent, so running it again changes nothing:
+
+```powershell
+pnpm medusa exec ./src/scripts/seed.ts
+```
+
+Then `pnpm dev` serves the API on `http://localhost:9000` and the admin on `http://localhost:9000/app`.
 
 ## Check it works
 
