@@ -1,6 +1,16 @@
 # dependencies
 /node_modules
 
+# Medusa build output and generated types
+.medusa
+/dist
+build
+.cache
+/uploads
+coverage
+*.tsbuildinfo
+medusa-db.sql
+
 # env files
 .env*
 !.env.example

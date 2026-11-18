@@ -93,6 +93,43 @@ gh auth login
 
 Choose GitHub.com, HTTPS and the browser login. Pull requests are opened with `gh`.
 
+### 5. Environment files
+
+Create two files at the repository root. Both are git-ignored; never commit them. Replace every `<placeholder>`.
+
+`.env`, for the development server:
+
+```ini
+DATABASE_URL=postgres://postgres:<password>@localhost:5432/migeanje_store
+STORE_CORS=http://localhost:3000
+ADMIN_CORS=http://localhost:5173,http://localhost:9000
+AUTH_CORS=http://localhost:3000,http://localhost:5173,http://localhost:9000
+JWT_SECRET=<long-random-string>
+COOKIE_SECRET=<another-long-random-string>
+```
+
+- `3000` is the storefront's Next.js dev server; `5173` and `9000` serve the Medusa admin.
+- Generate each secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+
+`.env.test`, for the integration tests (the test runners create and drop their own databases on this server):
+
+```ini
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=<password>
+```
+
+### 6. Database and admin user
+
+```powershell
+pnpm install
+pnpm medusa db:setup --db migeanje_store
+pnpm medusa user -e <your-email> -p <admin-password>
+```
+
+`db:setup` creates the database, runs the migrations and syncs module links. Then `pnpm dev` serves the API on `http://localhost:9000` and the admin on `http://localhost:9000/app`.
+
 ## Check it works
 
 Open a new PowerShell terminal:
