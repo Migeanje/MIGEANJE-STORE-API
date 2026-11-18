@@ -2,6 +2,10 @@
 
 Design of the Migeanje Store backend. Phase F2 produces these documents before Medusa is installed in F3.
 
+## Local development
+
+[Local development setup](dev-setup.md): Node.js, pnpm, PostgreSQL and Redis on Windows without Docker, and how to check them.
+
 ## Architecture decision records
 
 Cross-cutting decisions. Storefront-only decisions live in the storefront repository's `docs/adr/`.
@@ -16,6 +20,7 @@ Cross-cutting decisions. Storefront-only decisions live in the storefront reposi
 | [0006](adr/0006-complaints-book.md) | Complaints book: a custom module with a gapless yearly correlative (proposed) |
 | [0007](adr/0007-availability-mapping.md) | Availability: Medusa inventory plus procurement offers, enforced on the server (proposed) |
 | [0008](adr/0008-regime-flags.md) | Regime flags: one typed regime setting, from Nuevo RUS to regime B (proposed) |
+| [0009](adr/0009-proportionality.md) | Proportionality: which mechanisms of ADRs 0004–0008 the MVP builds, and the trigger for each deferred one |
 
 ## State machines
 
