@@ -35,7 +35,7 @@ The package manager is pnpm (`packageManager` in `package.json`). Never create a
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm test` | All three suites below |
 | `pnpm test:unit` | `src/**/__tests__/**/*.unit.spec.ts` |
-| `pnpm test:integration:modules` | `src/modules/*/__tests__/**` |
+| `pnpm test:integration:modules` | `src/modules/*/__tests__/**/*.integration.spec.ts` |
 | `pnpm test:integration:http` | `integration-tests/http/*.spec.ts` |
 | `pnpm medusa db:generate <module>` | Migration for a changed custom module model |
 | `pnpm medusa db:migrate` | Run pending migrations |

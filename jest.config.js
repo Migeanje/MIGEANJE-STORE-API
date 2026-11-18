@@ -24,7 +24,11 @@ module.exports = {
 if (process.env.TEST_TYPE === "integration:http") {
   module.exports.testMatch = ["**/integration-tests/http/*.spec.[jt]s"]
 } else if (process.env.TEST_TYPE === "integration:modules") {
-  module.exports.testMatch = ["**/src/modules/*/__tests__/**/*.[jt]s"]
+  // Named *.integration.spec.ts so unit specs and helpers in a module's
+  // __tests__/ folder are not picked up as module suites.
+  module.exports.testMatch = [
+    "**/src/modules/*/__tests__/**/*.integration.spec.[jt]s",
+  ]
 } else if (process.env.TEST_TYPE === "unit") {
   module.exports.testMatch = ["**/src/**/__tests__/**/*.unit.spec.[jt]s"]
 }
