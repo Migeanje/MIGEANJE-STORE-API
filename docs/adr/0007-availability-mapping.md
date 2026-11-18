@@ -1,6 +1,7 @@
 # ADR 0007 — Availability: Medusa inventory plus procurement offers, enforced on the server
 
 - Status: Proposed — pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #107 (section 3, catalog and cart), #118 (R8, R9), #121, #28, #30, #18 (6.3); [ADR 0001](0001-money-representation.md), [ADR 0003](0003-order-status-projection.md), [ADR 0008](0008-regime-flags.md); [procurement item state machine](../state-machines/procurement-item.md)
