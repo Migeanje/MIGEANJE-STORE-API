@@ -13,4 +13,9 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET,
     },
   },
+  modules: [
+    { resolve: "./src/modules/specs" },
+    { resolve: "./src/modules/editorial" },
+    { resolve: "./src/modules/ubigeo-shipping" },
+  ],
 })
