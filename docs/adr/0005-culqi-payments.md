@@ -1,6 +1,7 @@
 # ADR 0005 — Payments: Culqi tokenization and a Medusa payment provider
 
 - Status: Proposed — pending owner review
+- Proportionality: [ADR 0009](0009-proportionality.md) classifies this ADR's mechanisms as MVP or deferred. Read it before building any of them.
 - Date: 2026-11-04
 - Deciders: Owner
 - Related: Engram #118 (R1, R2, R10), #121, #107 (section 3, checkout and orders), #30; [ADR 0001](0001-money-representation.md); [ADR 0003](0003-order-status-projection.md); [order state machine](../state-machines/order.md)
