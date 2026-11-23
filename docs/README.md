@@ -2,6 +2,10 @@
 
 Design of the Migeanje Store backend. Phase F2 produces these documents before Medusa is installed in F3.
 
+## Local development
+
+[Local development setup](dev-setup.md): Node.js, pnpm, PostgreSQL and Redis on Windows without Docker, and how to check them.
+
 ## Architecture decision records
 
 Cross-cutting decisions. Storefront-only decisions live in the storefront repository's `docs/adr/`.
