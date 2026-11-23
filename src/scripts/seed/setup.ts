@@ -5,12 +5,17 @@ import {
   Modules,
 } from "@medusajs/framework/utils"
 import {
+  createApiKeysWorkflow,
   createPricePreferencesWorkflow,
   createRegionsWorkflow,
   createSalesChannelsWorkflow,
+  createShippingOptionsWorkflow,
+  createShippingProfilesWorkflow,
   createStockLocationsWorkflow,
   createTaxRegionsWorkflow,
+  linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
+  updateApiKeysWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
 import {
@@ -18,9 +23,21 @@ import {
   REGIME_CONFIG,
   type Regime,
 } from "../../config/regime"
+import { UBIGEO_SHIPPING_MODULE } from "../../modules/ubigeo-shipping"
+import {
+  CALLAO_DEPARTAMENTO,
+  LIMA_METRO_SUBDIVISION,
+  SHIPPING_ZONE_LABELS,
+} from "../../modules/ubigeo-shipping/domain/shipping-zone"
+import type UbigeoShippingModuleService from "../../modules/ubigeo-shipping/service"
+import { SHIPPING_RATES } from "../seed-data/shipping"
+import type { SeedShippingZone } from "../seed-data/types"
+import { DEPARTAMENTOS } from "../seed-data/ubigeo-departamentos"
+import { centimosToMajor } from "./money"
+import { graphRows } from "./query"
 
 /**
- * Setup layer of the seed (docs/seed-plan.md, steps 1–5 and 7).
+ * Setup layer of the seed (docs/seed-plan.md, steps 1–5, 7–11 and 19).
  *
  * Every record is looked up by its natural key first. A missing record is
  * created; a present one is kept, so a re-run creates nothing and never
@@ -36,6 +53,12 @@ export const SETUP = {
   taxProviderId: "tp_system",
   stockLocationName: "Almacén Lima",
   fulfillmentProviderId: "manual_manual",
+  shippingProfileName: "Default Shipping Profile",
+  shippingProfileType: "default",
+  fulfillmentSetName: "Envíos Perú",
+  publishableKeyTitle: "Storefront",
+  /** Title of the key Medusa creates at startup, which the seed adopts. */
+  medusaDefaultKeyTitle: "Default Publishable API Key",
   /** Store metadata key marking the store as configured by this layer. */
   storeMarker: "seed_setup",
 } as const
@@ -45,6 +68,9 @@ export type SetupResult = {
   salesChannelId: string
   regionId: string
   stockLocationId: string
+  shippingProfileId: string
+  fulfillmentSetId: string
+  publishableApiKeyId: string
 }
 
 type SetupOptions = { regime?: Regime }
@@ -255,6 +281,285 @@ const ensureStockLocation = async (
   return location.id
 }
 
+/** Step 8: the default shipping profile, keyed by `type`. */
+const ensureShippingProfile = async (container: MedusaContainer) => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "shipping_profile",
+    fields: ["id"],
+    filters: { type: SETUP.shippingProfileType },
+  })
+  if (data[0]) {
+    return data[0].id
+  }
+
+  const { result } = await createShippingProfilesWorkflow(container).run({
+    input: {
+      data: [
+        {
+          name: SETUP.shippingProfileName,
+          type: SETUP.shippingProfileType,
+        },
+      ],
+    },
+  })
+  return result[0].id
+}
+
+/**
+ * The geo zones of each service zone (docs/seed-plan.md, "Shipping zones and
+ * options"): Lima Metropolitana and Callao have one province code each, the
+ * rest of Peru the other 24 (the Lima departamento's `pe-lim` included).
+ */
+const zoneProvinces = (zone: SeedShippingZone): string[] => {
+  const callao = DEPARTAMENTOS.find(
+    (departamento) => departamento.code === CALLAO_DEPARTAMENTO,
+  )?.iso as string
+  if (zone === "lima_metro") return [LIMA_METRO_SUBDIVISION]
+  if (zone === "callao") return [callao]
+  return DEPARTAMENTOS.map(({ iso }) => iso as string).filter(
+    (iso) => iso !== callao,
+  )
+}
+
+const geoZones = (zone: SeedShippingZone) =>
+  zoneProvinces(zone).map((province) => ({
+    type: "province" as const,
+    country_code: SETUP.countryCode,
+    province_code: province,
+  }))
+
+/**
+ * Step 9: the fulfillment set with its service zones, linked to the stock
+ * location. A present set keeps its zones; a missing zone is added.
+ */
+const ensureFulfillmentSet = async (
+  container: MedusaContainer,
+  stockLocationId: string,
+) => {
+  const link = container.resolve(ContainerRegistrationKeys.LINK)
+  const fulfillment = container.resolve(Modules.FULFILLMENT)
+
+  const findSet = async () =>
+    (
+      await graphRows<{
+        id: string
+        service_zones: { name: string }[]
+        locations: { id: string }[]
+      }>(
+        container,
+        "fulfillment_set",
+        ["id", "service_zones.name", "locations.id"],
+        { name: SETUP.fulfillmentSetName },
+      )
+    )[0]
+
+  let set = await findSet()
+  if (!set) {
+    await fulfillment.createFulfillmentSets({
+      name: SETUP.fulfillmentSetName,
+      type: "shipping",
+      service_zones: SHIPPING_RATES.map(({ zone }) => ({
+        name: SHIPPING_ZONE_LABELS[zone],
+        geo_zones: geoZones(zone),
+      })),
+    })
+    set = await findSet()
+  } else {
+    const present = new Set(set.service_zones.map((zone) => zone?.name))
+    const missing = SHIPPING_RATES.filter(
+      ({ zone }) => !present.has(SHIPPING_ZONE_LABELS[zone]),
+    )
+    if (missing.length) {
+      await fulfillment.createServiceZones(
+        missing.map(({ zone }) => ({
+          name: SHIPPING_ZONE_LABELS[zone],
+          fulfillment_set_id: set.id,
+          geo_zones: geoZones(zone),
+        })),
+      )
+    }
+  }
+
+  const hasLocation = set.locations?.some(
+    (location) => location?.id === stockLocationId,
+  )
+  if (!hasLocation) {
+    await link.create({
+      [Modules.STOCK_LOCATION]: { stock_location_id: stockLocationId },
+      [Modules.FULFILLMENT]: { fulfillment_set_id: set.id },
+    })
+  }
+  return set.id
+}
+
+/** The id of a transit time of `zone` that no shipping option uses, if any. */
+const findFreeTransitTime = async (
+  container: MedusaContainer,
+  zone: SeedShippingZone,
+) => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "transit_time",
+    fields: ["id", "shipping_option.id"],
+    filters: { zone },
+  })
+  return data.find((row) => !row.shipping_option)?.id
+}
+
+/**
+ * Steps 10 and 19: one flat shipping option per zone, keyed by `type.code`,
+ * and its transit time. A present option keeps its name and price; a missing
+ * transit time link is added.
+ */
+const ensureShippingOptions = async (
+  container: MedusaContainer,
+  ids: { shippingProfileId: string; fulfillmentSetId: string },
+) => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const link = container.resolve(ContainerRegistrationKeys.LINK)
+  const ubigeo = container.resolve<UbigeoShippingModuleService>(
+    UBIGEO_SHIPPING_MODULE,
+  )
+
+  const {
+    data: [set],
+  } = await query.graph({
+    entity: "fulfillment_set",
+    fields: ["service_zones.id", "service_zones.name"],
+    filters: { id: ids.fulfillmentSetId },
+  })
+
+  const findOptions = () =>
+    graphRows<{
+      id: string
+      type: { code: string } | null
+      transit_time: { id: string } | null
+    }>(container, "shipping_option", ["id", "type.code", "transit_time.id"])
+
+  const present = await findOptions()
+  const missing = SHIPPING_RATES.filter(
+    ({ zone }) => !present.some((option) => option.type?.code === zone),
+  )
+  if (missing.length) {
+    await createShippingOptionsWorkflow(container).run({
+      input: missing.map(({ zone, costCentimos }) => {
+        const label = SHIPPING_ZONE_LABELS[zone]
+        const serviceZone = set.service_zones.find((z) => z?.name === label)
+        return {
+          name: label,
+          price_type: "flat" as const,
+          provider_id: SETUP.fulfillmentProviderId,
+          service_zone_id: serviceZone?.id as string,
+          shipping_profile_id: ids.shippingProfileId,
+          type: {
+            label,
+            description: `Envío a ${label}`,
+            code: zone,
+          },
+          prices: [
+            {
+              currency_code: SETUP.currencyCode,
+              amount: centimosToMajor(costCentimos),
+            },
+          ],
+          rules: [
+            {
+              attribute: "enabled_in_store",
+              value: "true",
+              operator: "eq" as const,
+            },
+            { attribute: "is_return", value: "false", operator: "eq" as const },
+          ],
+        }
+      }),
+    })
+  }
+
+  for (const option of await findOptions()) {
+    const rate = SHIPPING_RATES.find(({ zone }) => zone === option.type?.code)
+    if (!rate || option.transit_time) continue
+
+    const transitTimeId =
+      (await findFreeTransitTime(container, rate.zone)) ??
+      (
+        await ubigeo.createTransitTimes({
+          zone: rate.zone,
+          min_days: rate.transitDays.min,
+          max_days: rate.transitDays.max,
+        })
+      ).id
+    await link.create({
+      [Modules.FULFILLMENT]: { shipping_option_id: option.id },
+      [UBIGEO_SHIPPING_MODULE]: { transit_time_id: transitTimeId },
+    })
+  }
+}
+
+/**
+ * Step 11: the publishable API key, linked to the sales channel. Medusa
+ * creates a "Default Publishable API Key" at startup (createDefaultsWorkflow),
+ * so the store would end up with two; the seed adopts that one by giving it
+ * the title "Storefront", and creates a key only when there is none. A key
+ * already titled "Storefront" is kept. The key is public: it is logged once,
+ * when the seed creates it, for the storefront environment.
+ */
+const ensurePublishableKey = async (
+  container: MedusaContainer,
+  salesChannelId: string,
+) => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+  const findKey = async (title: string) =>
+    (
+      await query.graph({
+        entity: "api_key",
+        fields: ["id", "token", "sales_channels.id"],
+        filters: { type: "publishable", title },
+      })
+    ).data[0]
+
+  let key = await findKey(SETUP.publishableKeyTitle)
+  if (!key) {
+    const medusaKey = await findKey(SETUP.medusaDefaultKeyTitle)
+    if (medusaKey) {
+      await updateApiKeysWorkflow(container).run({
+        input: {
+          selector: { id: medusaKey.id },
+          update: { title: SETUP.publishableKeyTitle },
+        },
+      })
+    } else {
+      await createApiKeysWorkflow(container).run({
+        input: {
+          api_keys: [
+            {
+              title: SETUP.publishableKeyTitle,
+              type: "publishable",
+              created_by: "",
+            },
+          ],
+        },
+      })
+    }
+    key = await findKey(SETUP.publishableKeyTitle)
+    logger.info(
+      `Publishable API key "${SETUP.publishableKeyTitle}" (public; set it in the storefront environment): ${key.token}`,
+    )
+  }
+
+  const hasChannel = key.sales_channels?.some(
+    (channel) => channel?.id === salesChannelId,
+  )
+  if (!hasChannel) {
+    await linkSalesChannelsToApiKeyWorkflow(container).run({
+      input: { id: key.id, add: [salesChannelId] },
+    })
+  }
+  return key.id
+}
+
 export async function seedSetup(
   container: MedusaContainer,
   options: SetupOptions = {},
@@ -270,6 +575,27 @@ export async function seedSetup(
     storeId,
     salesChannelId,
   })
+  const shippingProfileId = await ensureShippingProfile(container)
+  const fulfillmentSetId = await ensureFulfillmentSet(
+    container,
+    stockLocationId,
+  )
+  await ensureShippingOptions(container, {
+    shippingProfileId,
+    fulfillmentSetId,
+  })
+  const publishableApiKeyId = await ensurePublishableKey(
+    container,
+    salesChannelId,
+  )
 
-  return { storeId, salesChannelId, regionId, stockLocationId }
+  return {
+    storeId,
+    salesChannelId,
+    regionId,
+    stockLocationId,
+    shippingProfileId,
+    fulfillmentSetId,
+    publishableApiKeyId,
+  }
 }

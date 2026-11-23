@@ -106,9 +106,11 @@ ADMIN_CORS=http://localhost:5173,http://localhost:9000
 AUTH_CORS=http://localhost:3000,http://localhost:5173,http://localhost:9000
 JWT_SECRET=<long-random-string>
 COOKIE_SECRET=<another-long-random-string>
+SEED_DEMO_PASSWORD=<demo-password>
 ```
 
 - `3000` is the storefront's Next.js dev server; `5173` and `9000` serve the Medusa admin.
+- `SEED_DEMO_PASSWORD` is the password of the public demo account `demo@migeanje.pe` (8 to 128 characters). Only the seed's demo layer reads it; it refuses to run without it and when `NODE_ENV` is `production`.
 - Generate each secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
 `.env.test`, for the integration tests (the test runners create and drop their own databases on this server):
@@ -132,7 +134,10 @@ pnpm medusa user -e <your-email> -p <admin-password>
 
 ```powershell
 pnpm medusa exec ./src/scripts/seed.ts
+pnpm medusa exec ./src/scripts/seed-check.ts
 ```
+
+Without arguments the seed runs every layer, in this order: `reference` (ubigeo tree, holidays, refund reasons), `setup` (store, region, taxes, stock location, shipping, publishable API key), `catalog` (categories, brands, products, specs, rubrics, reviews) and `demo` (stock, demo customer and addresses). Name layers to run only those, for example `pnpm medusa exec ./src/scripts/seed.ts reference setup catalog` (what production runs: the demo layer is refused there). `seed-check.ts` is read-only, takes the same layer arguments and exits non-zero when a count or the Apple line check fails. The first run logs the public publishable API key; the storefront needs it.
 
 Then `pnpm dev` serves the API on `http://localhost:9000` and the admin on `http://localhost:9000/app`.
 

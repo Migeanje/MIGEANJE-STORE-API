@@ -39,7 +39,8 @@ The package manager is pnpm (`packageManager` in `package.json`). Never create a
 | `pnpm test:integration:http` | `integration-tests/http/*.spec.ts` |
 | `pnpm medusa db:generate <module>` | Migration for a changed custom module model |
 | `pnpm medusa db:migrate` | Run pending migrations |
-| `pnpm medusa exec ./src/scripts/seed.ts [layer ...]` | Idempotent seed (`docs/seed-plan.md`); no layer runs them all. Layers so far: `setup` |
+| `pnpm medusa exec ./src/scripts/seed.ts [layer ...]` | Idempotent seed (`docs/seed-plan.md`); no layer runs them all, always in this order: `reference`, `setup`, `catalog`, `demo`. `demo` refuses to run when `NODE_ENV` is `production` and needs `SEED_DEMO_PASSWORD` |
+| `pnpm medusa exec ./src/scripts/seed-check.ts [layer ...]` | Read-only post-seed counts and Apple line check; exits non-zero on a failure |
 
 Run one test: `pnpm test:unit <path>` or `pnpm test:unit -t "<name>"`. Do not add `--`: pnpm passes it on to Jest, which then reads `-t` and the name as file path patterns, so the wrong tests run (or none, and the suite still passes).
 
