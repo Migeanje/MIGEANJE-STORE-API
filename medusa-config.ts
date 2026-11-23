@@ -13,4 +13,7 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET,
     },
   },
+  modules: [
+    { resolve: "./src/modules/specs" },
+  ],
 })

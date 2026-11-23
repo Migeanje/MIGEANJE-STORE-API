@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/.medusa", "!**/*.md"]
+    "includes": ["**", "!**/.medusa", "!**/*.md", "!**/migrations"]
   },
   "formatter": {
     "enabled": true,
